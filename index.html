@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TypeFlow - تعلم الكتابة والإنجليزية بطريقة مخصصة لك</title>
+
+  <meta name="description" content="منصة تفاعلية تخصص رحلتك في تعلم الكتابة السريعة أو اللغة الإنجليزية حسب مستواك وهدفك. صديقة لذوي التشتت.">
+  <meta name="author" content="TypeFlow Team">
+
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>♾️</text></svg>">
+  <link rel="stylesheet" href="style.css">
+
+  <!-- SheetJS for Excel parsing -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body class="dark-mode">
+
+  <!-- ===== SVG icon sprite (Lucide-style) — replaces emoji in structural UI ===== -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <defs>
+      <symbol id="i-user" viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+      <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></symbol>
+      <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></symbol>
+      <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></symbol>
+      <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+      <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></symbol>
+      <symbol id="i-volume" viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a9 9 0 0 1 0 14"/></symbol>
+      <symbol id="i-volume-x" viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="m22 9-6 6M16 9l6 6"/></symbol>
+      <symbol id="i-rotate-ccw" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></symbol>
+      <symbol id="i-rotate-cw" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></symbol>
+      <symbol id="i-skip-back" viewBox="0 0 24 24"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/></symbol>
+      <symbol id="i-skip-fwd" viewBox="0 0 24 24"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></symbol>
+      <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></symbol>
+      <symbol id="i-play" viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20 6 4"/></symbol>
+      <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></symbol>
+      <symbol id="i-palette" viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r="1.3"/><circle cx="17.5" cy="10.5" r="1.3"/><circle cx="8.5" cy="7.5" r="1.3"/><circle cx="6.5" cy="12.5" r="1.3"/><path d="M12 2a10 10 0 0 0 0 20c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.4-.5-.8-.5-1.2 0-1.1.9-2 2-2h2.3c2.6 0 4.7-2.1 4.7-4.7C22 5.9 17.5 2 12 2z"/></symbol>
+      <symbol id="i-chart" viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></symbol>
+      <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+      <symbol id="i-chevron-start" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+      <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20z"/></symbol>
+      <symbol id="i-keyboard" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M8 14h8"/></symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+      <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
+      <symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5M12 3v12"/></symbol>
+      <symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></symbol>
+      <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></symbol>
+      <symbol id="i-folder" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></symbol>
+      <symbol id="i-folder-plus" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><path d="M12 11v6M9 14h6"/></symbol>
+      <symbol id="i-edit" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></symbol>
+      <symbol id="i-lock" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+      <symbol id="i-rocket" viewBox="0 0 24 24"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91 0z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></symbol>
+      <symbol id="i-save" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></symbol>
+    </defs>
+  </svg>
+
+  <!-- Zen mode exit button (only visible in zen mode) -->
+  <button class="zen-exit-btn" id="zen-exit-btn" title="خروج من وضع التركيز" aria-label="خروج من وضع التركيز">
+    <svg class="icon icon-sm"><use href="#i-x"/></svg>
+  </button>
+
+  <div class="app-container">
+
+    <!-- =========================== HEADER =========================== -->
+    <header>
+      <div class="logo-area" id="logo-main">
+        <svg class="logo-svg" viewBox="0 0 100 100" aria-label="TypeFlow Logo">
+          <path d="M 50,50 C 35,25 15,25 15,50 C 15,75 35,75 50,50 C 65,25 85,25 85,50 C 85,62 78,70 70,66" />
+          <path d="M 49,51 C 36,27 16,27 16,50 C 16,73 36,73 49,51 C 64,27 84,27 84,50 C 84,61 77,69 71,65" opacity="0.4" stroke-dasharray="2 1" />
+          <line x1="70" y1="56" x2="70" y2="76" stroke-linecap="round" />
+        </svg>
+        <h1 class="logo-text">TypeFlow<span>.</span></h1>
+      </div>
+
+      <div class="toolbar">
+        <div class="user-profile" id="user-profile">
+          <button id="profile-btn" class="btn-secondary btn-sm" style="display: none;" title="إعدادات حسابي / My Profile">
+            <svg class="icon icon-sm"><use href="#i-user"/></svg> <span id="profile-btn-text">حسابي</span>
+          </button>
+          <button id="auth-btn" class="btn-secondary btn-sm">
+            <svg class="icon icon-sm"><use href="#i-user"/></svg> <span id="auth-btn-text">تسجيل دخول / Login</span>
+          </button>
+        </div>
+        <div class="admin-profile" id="admin-profile" style="display: none;">
+          <button id="admin-link" class="btn-secondary btn-sm">
+            <svg class="icon icon-sm"><use href="#i-shield"/></svg> <span id="admin-link-text">لوحة المدير / Admin</span>
+          </button>
+        </div>
+        <button id="restart-onboarding-btn" class="icon-btn" title="إعادة تخصيص الرحلة / Restart onboarding" aria-label="إعادة تخصيص الرحلة" style="display: none;">
+          <svg class="icon"><use href="#i-rotate-ccw"/></svg>
+        </button>
+        <button id="focus-toggle" class="icon-btn" title="وضع التركيز (Esc للتحويل)" aria-label="وضع التركيز">
+          <svg class="icon"><use href="#i-target"/></svg>
+        </button>
+        <button id="theme-toggle" class="icon-btn" title="تبديل المظهر" aria-label="تبديل المظهر">
+          <svg class="icon"><use href="#i-sun"/></svg>
+        </button>
+        <div class="audio-settings">
+          <label for="sound-select" class="hide-mobile" aria-label="الصوت" style="display:inline-flex; color: var(--text-muted);">
+            <svg class="icon"><use href="#i-volume"/></svg>
+          </label>
+          <select id="sound-select" class="select-minimal" aria-label="نوع صوت لوحة المفاتيح">
+            <option value="blue">Blue</option>
+            <option value="brown">Brown</option>
+            <option value="red">Red</option>
+            <option value="none">كتم</option>
+          </select>
+        </div>
+      </div>
+    </header>
+
+    <!-- =========================== LANDING / WELCOME =========================== -->
+    <section class="landing-section" id="landing-section">
+
+      <div class="landing-hero">
+        <div class="landing-hero-text">
+          <h1 class="landing-title">
+            تعلّم الكتابة السريعة <br>
+            <span class="landing-title-accent">والإنجليزية في آن واحد</span>
+          </h1>
+          <p class="landing-subtitle">
+            منصة عربية مخصصة لمن يريد بناء سرعة كتابة عالية ومفردات إنجليزية حقيقية،
+            مصممة بعناية لذوي التشتت ولمن يقدّر التركيز العميق.
+          </p>
+          <div class="landing-cta">
+            <button class="btn-primary btn-lg" id="landing-start-btn">
+              <svg class="icon"><use href="#i-rocket"/></svg> ابدأ مجاناً
+            </button>
+            <button class="btn-secondary btn-lg" id="landing-login-btn">
+              <svg class="icon"><use href="#i-user"/></svg> لدي حساب
+            </button>
+          </div>
+        </div>
+        <div class="landing-hero-visual">
+          <div class="hero-text-demo">
+            <span class="char correct">P</span><span class="char correct">r</span><span class="char correct">a</span><span class="char correct">c</span><span class="char correct">t</span><span class="char correct">i</span><span class="char correct">c</span><span class="char correct">e</span><span class="char untyped"> </span><span class="char active blink">m</span><span class="char untyped">a</span><span class="char untyped">k</span><span class="char untyped">e</span><span class="char untyped">s</span><span class="char untyped"> </span><span class="char untyped">p</span><span class="char untyped">e</span><span class="char untyped">r</span><span class="char untyped">f</span><span class="char untyped">e</span><span class="char untyped">c</span><span class="char untyped">t</span><span class="char untyped">.</span>
+          </div>
+          <div class="hero-metrics">
+            <div class="hero-metric"><span>62</span><small>WPM</small></div>
+            <div class="hero-metric"><span>96%</span><small>دقة</small></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="landing-features">
+        <div class="feature-card">
+          <div class="feature-icon">🎯</div>
+          <h3>تدريب مخصص</h3>
+          <p>اختر مستواك (A1 إلى C2) وسبب تعلّمك، فيقدم لك النظام محتوى يلامس حياتك العملية.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">📚</div>
+          <h3>20 سبباً للتعلم</h3>
+          <p>من الترقي الوظيفي حتى مشاهدة الأفلام والذكاء الاصطناعي — لكل سبب بنك نصوص خاص به.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">📂</div>
+          <h3>مكتبتك الخاصة</h3>
+          <p>أضف نصوصك ومجلداتك. ارفع ملف Excel بكلماتك المهمة. تدرّب على ما يعنيك أنت.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">⚡</div>
+          <h3>أصوات كيبورد ميكانيكية</h3>
+          <p>صوت Blue / Brown / Red switch محاكاة حقيقية — لأن الكتابة تجربة، لا مجرد إنتاج كلمات.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">🧠</div>
+          <h3>صديق للتركيز</h3>
+          <p>تصميم monochrome هادئ، وضع تركيز كامل (Zen)، تتبع لأخطاء حروف وكلمات لتقوي ذاكرتك العضلية.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon">📊</div>
+          <h3>تتبع تقدم حقيقي</h3>
+          <p>متوسط سرعتك يتحسن مع الوقت، تعرف بالضبط الحروف والكلمات التي تتعثر فيها.</p>
+        </div>
+      </div>
+
+      <div class="landing-howitworks">
+        <h2 class="section-title">كيف يعمل؟</h2>
+        <ol class="steps-list">
+          <li><strong>سجّل حساباً</strong> — مجاناً بضغطة واحدة</li>
+          <li><strong>أخبرنا عن نفسك</strong> — هدفك، مستواك، سبب التعلم</li>
+          <li><strong>ابدأ التدريب</strong> — على نصوص تناسبك تماماً</li>
+          <li><strong>أضف نصوصك</strong> — كلمات تعجبك أو ملفات Excel</li>
+          <li><strong>تقدم بثبات</strong> — كل خطأ يُحفظ ليصبح درس المرة القادمة</li>
+        </ol>
+      </div>
+
+      <footer class="landing-footer">
+        <p>TypeFlow ♾️ — تعلم بحواسك، ابنِ ذاكرتك العضلية.</p>
+      </footer>
+    </section>
+
+    <!-- =========================== ONBOARDING =========================== -->
+    <section class="onboarding-section" id="onboarding-section">
+
+      <!-- Progress dots -->
+      <div class="onboarding-progress" id="onboarding-progress">
+        <span class="dot active" data-step="goal"></span>
+        <span class="dot" data-step="level"></span>
+        <span class="dot" data-step="reason"></span>
+        <span class="dot" data-step="size"></span>
+      </div>
+
+      <!-- STEP 1: Goal -->
+      <div class="onboarding-step active" id="step-goal">
+        <h2 class="onboarding-title">ما هدفك من استخدام المنصة؟</h2>
+        <p class="onboarding-subtitle">What brings you to TypeFlow today?</p>
+        <div class="options-grid options-grid-2">
+          <button class="option-card option-card-lg" data-goal="english">
+            <span class="option-icon">🌍</span>
+            <span class="option-title">تعلم اللغة الإنجليزية</span>
+            <span class="option-desc">Learn English through typing — مع تخصيص حسب مستواك وهدفك</span>
+          </button>
+          <button class="option-card option-card-lg" data-goal="typing">
+            <span class="option-icon">⌨️</span>
+            <span class="option-title">تعلم الكتابة السريعة فقط</span>
+            <span class="option-desc">Pure touch-typing — تدريب على لوحة المفاتيح بدون تعلم لغة</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- STEP 2: Level (English only) -->
+      <div class="onboarding-step" id="step-level">
+        <button class="onboarding-back" data-back-to="goal">← السابق</button>
+        <h2 class="onboarding-title">ما مستواك الحالي في الإنجليزية؟</h2>
+        <p class="onboarding-subtitle">Pick your current English level (CEFR)</p>
+        <div class="options-grid options-grid-3" id="levels-grid">
+          <!-- populated by JS -->
+        </div>
+      </div>
+
+      <!-- STEP 3: Reason (English only) -->
+      <div class="onboarding-step" id="step-reason">
+        <button class="onboarding-back" data-back-to="level">← السابق</button>
+        <h2 class="onboarding-title">لماذا تتعلم الإنجليزية؟</h2>
+        <p class="onboarding-subtitle">Pick a reason — اختر الأقرب لاحتياجك (يمكن تغييره لاحقاً)</p>
+        <div class="options-grid options-grid-4" id="reasons-grid">
+          <!-- populated by JS -->
+        </div>
+      </div>
+
+      <!-- STEP 4: Size preference (both flows) -->
+      <div class="onboarding-step" id="step-size">
+        <button class="onboarding-back" id="size-back-btn">← السابق</button>
+        <h2 class="onboarding-title">ما حجم النص الذي تفضل التدرب عليه؟</h2>
+        <p class="onboarding-subtitle">Choose your preferred practice length</p>
+        <div class="options-grid options-grid-3" id="sizes-grid">
+          <!-- populated by JS -->
+        </div>
+      </div>
+
+    </section>
+
+    <!-- =========================== PRACTICE WORKBENCH =========================== -->
+    <section class="practice-section" id="practice-section" style="display: none;">
+
+      <!-- Context bar — minimal by default, settings hidden behind toggle -->
+      <div class="practice-context-bar" id="practice-context-bar">
+        <div class="context-info" id="context-info">
+          <!-- populated by JS: workspace name -->
+        </div>
+        <div class="context-controls">
+          <span class="paragraph-counter" id="paragraph-counter">1 / 1</span>
+          <span class="paragraph-counter rep-counter" id="rep-counter" style="display: none;">🔁 1/1</span>
+          <button type="button" id="toggle-settings-btn" class="btn-secondary btn-sm" title="إعدادات عرض النصوص">
+            <svg class="icon icon-sm"><use href="#i-settings"/></svg> إعدادات العرض
+          </button>
+        </div>
+      </div>
+
+      <!-- Collapsible settings panel (hidden by default) -->
+      <div class="settings-panel" id="settings-panel" style="display: none;">
+
+        <div class="settings-group">
+          <label class="settings-group-label">📏 أحجام النصوص (يمكن اختيار أكثر من حجم):</label>
+          <div class="size-checkboxes" id="size-checkboxes">
+            <!-- populated by JS -->
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <label class="settings-group-label">🔁 عدد التكرارات للنص الواحد (1-100):</label>
+          <input type="number" id="repetition-select" class="input-minimal"
+            min="1" max="100" value="1"
+            style="border: 1px solid var(--border-color); border-radius: 6px; padding: 0.4rem 0.6rem; width: 100px; font-family: var(--font-mono); font-weight: 600;">
+        </div>
+
+        <!-- Folder picker (v2.6) — visible only when user has folders with content -->
+        <div class="settings-group" id="folder-source-group" style="display: none;">
+          <label class="settings-group-label">📂 مجلد المصدر:</label>
+          <select id="folder-source-select" class="select-minimal" style="min-width: 200px;"></select>
+        </div>
+
+        <!-- Visible only in default workspaces -->
+        <div class="settings-group" id="reset-defaults-group" style="display: none;">
+          <button type="button" id="reset-defaults-btn" class="btn-secondary">
+            🔄 إعادة النصوص الافتراضية لهذا المسار
+          </button>
+          <p class="focus-instruction">
+            يحذف الإضافات التي أضفتها لهذا المسار ويعيد النصوص الأصلية كما كانت.
+          </p>
+        </div>
+
+        <!-- Quick add-text inside the current workspace -->
+        <div class="settings-group" id="quick-add-group">
+          <label class="settings-group-label">✍️ أضف نصاً سريعاً لهذه المساحة:</label>
+          <textarea id="quick-add-input" class="input-minimal" rows="3"
+            placeholder="اكتب نصاً جديداً يُضاف لمساحة العمل الحالية..."
+            style="border: 1px solid var(--border-color); border-radius: 4px; padding: 0.5rem; font-family: var(--font-mono);"></textarea>
+          <div class="classify-preview">
+            التصنيف: <span id="quick-classify-badge" class="size-badge">—</span>
+          </div>
+          <button type="button" id="quick-add-btn" class="btn-primary btn-sm">💾 إضافة</button>
+        </div>
+
+      </div>
+
+      <main class="typing-workbench" id="typing-workbench" tabindex="0" aria-label="Typing Practice Area">
+        <input type="text" id="typing-input" class="typing-input" autocomplete="off" autofocus>
+
+        <div class="typing-text-container" id="typing-text-container">
+          <!-- character spans injected by JS -->
+        </div>
+
+        <div class="control-strip">
+          <div class="metrics-row">
+            <div class="metric-box">
+              <span class="metric-val" id="wpm-val">0</span>
+              <span class="metric-label">WPM</span>
+            </div>
+            <div class="metric-box">
+              <span class="metric-val" id="accuracy-val">100%</span>
+              <span class="metric-label">الدقة / Accuracy</span>
+            </div>
+            <div class="metric-box">
+              <span class="metric-val" id="time-val">0s</span>
+              <span class="metric-label">الوقت / Time</span>
+            </div>
+          </div>
+
+          <div class="nav-icon-bar">
+            <button id="prev-btn" class="icon-btn-circular" title="الفقرة السابقة" aria-label="الفقرة السابقة"><svg class="icon"><use href="#i-skip-back"/></svg></button>
+            <button id="pause-btn" class="icon-btn-circular" title="إيقاف/استئناف العداد" aria-label="إيقاف أو استئناف"><svg class="icon"><use href="#i-pause"/></svg></button>
+            <button id="reset-btn" class="icon-btn-circular" title="إعادة الفقرة" aria-label="إعادة الفقرة"><svg class="icon"><use href="#i-rotate-cw"/></svg></button>
+            <button id="skip-btn" class="icon-btn-circular" title="الفقرة التالية" aria-label="الفقرة التالية"><svg class="icon"><use href="#i-skip-fwd"/></svg></button>
+          </div>
+        </div>
+
+        <div class="progress-container">
+          <div class="progress-bar" id="progress-bar"></div>
+        </div>
+      </main>
+
+      <!-- Post-paragraph summary -->
+      <section class="summary-panel" id="summary-panel">
+        <div class="summary-header">
+          <h2 class="summary-title">أحسنت! انتهيت من هذه الفقرة 🎉</h2>
+          <p class="summary-subtitle">تابع تقدمك مع كل فقرة. السرعة والدقة تتحسنان بالتكرار.</p>
+        </div>
+
+        <div class="summary-stats-grid">
+          <div class="summary-metric">
+            <div class="metric-val" id="summary-wpm">0</div>
+            <div class="metric-label">سرعة / WPM</div>
+          </div>
+          <div class="summary-metric">
+            <div class="metric-val" id="summary-accuracy">100%</div>
+            <div class="metric-label">دقة / Accuracy</div>
+          </div>
+          <div class="summary-metric">
+            <div class="metric-val" id="summary-time">0s</div>
+            <div class="metric-label">الوقت / Time</div>
+          </div>
+          <div class="summary-metric">
+            <div class="metric-val" id="summary-avg-wpm">0</div>
+            <div class="metric-label">متوسطك الكلي</div>
+          </div>
+        </div>
+
+        <div class="error-breakdown">
+          <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 0.5rem;">حروف تحتاج تركيز:</h3>
+          <ul class="error-list" id="summary-error-list"></ul>
+          <h3 style="font-size: 1rem; font-weight: 600; margin: 1rem 0 0.5rem;">كلمات أخطأت فيها:</h3>
+          <ul class="error-list" id="summary-error-words"></ul>
+        </div>
+
+        <div class="action-buttons">
+          <button id="restart-btn" class="btn-secondary">🔄 أعد الفقرة</button>
+          <button id="next-btn" class="btn-primary">⏭️ الفقرة التالية</button>
+        </div>
+      </section>
+    </section>
+
+    <!-- =========================== HISTORY =========================== -->
+    <section class="history-section" id="history-section" style="display: none;">
+      <h2 class="section-title">سجل الأداء الأخير / Recent Performance</h2>
+      <div class="history-table-container">
+        <table class="history-table">
+          <thead>
+            <tr>
+              <th>التاريخ</th>
+              <th>المسار</th>
+              <th>المستوى</th>
+              <th>الحجم</th>
+              <th>WPM</th>
+              <th>الدقة</th>
+            </tr>
+          </thead>
+          <tbody id="history-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- =========================== PROFILE / USER SETTINGS =========================== -->
+    <section class="profile-section" id="profile-section" style="display: none;">
+
+      <div class="profile-header">
+        <h2 style="font-size: 1.5rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem;">
+          ⚙️ إعدادات حسابي / My Profile
+        </h2>
+        <button id="profile-back-btn" class="btn-primary"><svg class="icon icon-sm"><use href="#i-chevron-start"/></svg> عودة للتدريب</button>
+      </div>
+
+      <div class="profile-shell">
+
+        <!-- Sidebar (v2.7 — 5 clean sections) -->
+        <aside class="profile-sidebar">
+          <button type="button" class="profile-sidebar-tab active" data-panel="account">
+            <svg class="icon"><use href="#i-user"/></svg> <span class="tab-text">الحساب</span>
+          </button>
+          <button type="button" class="profile-sidebar-tab" data-panel="preferences">
+            <svg class="icon"><use href="#i-target"/></svg> <span class="tab-text">تفضيلات التعلم</span>
+          </button>
+          <button type="button" class="profile-sidebar-tab" data-panel="texts">
+            <svg class="icon"><use href="#i-book"/></svg> <span class="tab-text">مكتبة النصوص</span>
+          </button>
+          <button type="button" class="profile-sidebar-tab" data-panel="display">
+            <svg class="icon"><use href="#i-palette"/></svg> <span class="tab-text">سلوك العرض</span>
+          </button>
+          <button type="button" class="profile-sidebar-tab" data-panel="performance">
+            <svg class="icon"><use href="#i-chart"/></svg> <span class="tab-text">تحليل الأداء</span>
+          </button>
+        </aside>
+
+        <main class="profile-main">
+
+      <!-- ▶ Panel: Account -->
+      <div class="profile-panel active" data-panel="account">
+        <div class="profile-card">
+          <h3 class="profile-card-title">📇 معلومات الحساب</h3>
+          <div class="settings-row">
+            <span class="settings-label">اسم المستخدم</span>
+            <span class="settings-value" id="profile-username">—</span>
+          </div>
+          <div class="settings-row">
+            <span class="settings-label">البريد الإلكتروني</span>
+            <span class="settings-value" id="profile-email">—</span>
+          </div>
+          <div class="settings-row">
+            <span class="settings-label">كلمة المرور</span>
+            <button id="change-password-btn" class="btn-secondary btn-sm">🔒 تغيير كلمة المرور</button>
+          </div>
+
+          <form id="change-password-form" class="auth-form" style="display: none; margin-top: 1rem; padding: 1rem; border: 1px dashed var(--border-color); border-radius: 6px;">
+            <div class="form-group">
+              <label>كلمة المرور الحالية</label>
+              <input type="password" id="current-password" class="input-minimal" required>
+            </div>
+            <div class="form-group">
+              <label>كلمة المرور الجديدة (6+ أحرف)</label>
+              <input type="password" id="new-password" class="input-minimal" minlength="6" required>
+            </div>
+            <div class="form-group">
+              <label>تأكيد كلمة المرور الجديدة</label>
+              <input type="password" id="confirm-password" class="input-minimal" minlength="6" required>
+            </div>
+            <div class="auth-error" id="change-password-error"></div>
+            <div class="auth-error" id="change-password-success" style="color: var(--success-color); background-color: transparent; border-color: var(--success-color);"></div>
+            <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+              <button type="submit" class="btn-primary">💾 حفظ</button>
+              <button type="button" id="cancel-password-btn" class="btn-secondary">إلغاء</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- ▶ Panel: Learning Preferences (now standalone) -->
+      <div class="profile-panel" data-panel="preferences">
+        <div class="profile-card">
+          <h3 class="profile-card-title">🎯 تفضيلات التعلم</h3>
+          <p class="focus-instruction" style="margin-bottom: 1rem;">
+            هذه التفضيلات تحدد المحتوى الافتراضي الذي يظهر لك في التدريب.
+          </p>
+          <div class="settings-row">
+            <span class="settings-label">الهدف</span>
+            <span class="settings-value" id="pref-goal">—</span>
+            <button class="btn-secondary btn-sm" id="edit-goal-btn">✏️ تعديل</button>
+          </div>
+          <div class="settings-row" id="pref-level-row">
+            <span class="settings-label">المستوى</span>
+            <span class="settings-value" id="pref-level">—</span>
+            <button class="btn-secondary btn-sm" id="edit-level-btn">✏️ تعديل</button>
+          </div>
+          <div class="settings-row" id="pref-reason-row">
+            <span class="settings-label">السبب</span>
+            <span class="settings-value" id="pref-reason">—</span>
+            <button class="btn-secondary btn-sm" id="edit-reason-btn">✏️ تعديل</button>
+          </div>
+          <p class="focus-instruction" style="margin-top: 1rem;">
+            💡 حجم النص وعدد التكرارات يُضبطان من شاشة التدريب (زر ⚙️).
+          </p>
+        </div>
+      </div>
+
+      <!-- ▶ Panel: Text Library (clean inner sub-tabs) -->
+      <div class="profile-panel" data-panel="texts">
+
+        <!-- Inner sub-tabs -->
+        <div class="texts-subtabs">
+          <button type="button" class="texts-subtab active" data-subtab="default">📚 النصوص الجاهزة</button>
+          <button type="button" class="texts-subtab" data-subtab="mine">📂 نصوصي ومجلداتي</button>
+        </div>
+
+        <!-- ── Sub-panel: Default content ── -->
+        <div class="texts-subpanel active" id="panel-default-content">
+          <div class="profile-card">
+            <p class="focus-instruction" style="margin-bottom: 1rem;">
+              🔒 نصوص جاهزة مرفقة بالموقع. تصفّحها واضغط أي نص لتبدأ التدريب عليه مباشرة.
+            </p>
+            <div class="default-filters">
+              <div class="filter-group">
+                <label>المسار</label>
+                <select id="default-track-filter" class="select-minimal">
+                  <option value="english">🌍 الإنجليزية</option>
+                  <option value="typing-en">⌨️ الكتابة (EN)</option>
+                  <option value="typing-ar">⌨️ الكتابة (AR)</option>
+                </select>
+              </div>
+              <div class="filter-group english-filter">
+                <label>السبب</label>
+                <select id="default-reason-filter" class="select-minimal"></select>
+              </div>
+              <div class="filter-group english-filter">
+                <label>المستوى</label>
+                <select id="default-level-filter" class="select-minimal"></select>
+              </div>
+              <div class="filter-group">
+                <label>الحجم</label>
+                <select id="default-size-filter" class="select-minimal"></select>
+              </div>
+            </div>
+            <div class="default-content-meta" id="default-content-meta"></div>
+            <div class="default-content-list" id="default-content-list"></div>
+          </div>
+        </div>
+
+        <!-- ── Sub-panel: My library ── -->
+        <div class="texts-subpanel" id="panel-my-content" style="display: none;">
+
+          <!-- Folders strip -->
+          <div class="profile-card">
+            <h4 class="sub-section-title">
+              📁 المجلدات <span class="profile-card-subtitle" id="folders-count">(0)</span>
+            </h4>
+            <div class="folders-list" id="folders-list"></div>
+            <form id="add-folder-form" class="folder-add-form">
+              <input type="text" id="new-folder-icon" class="input-minimal folder-icon-input"
+                placeholder="📁" maxlength="2" value="📁">
+              <input type="text" id="new-folder-name" class="input-minimal folder-name-input"
+                placeholder="اسم المجلد الجديد..." required>
+              <button type="submit" class="btn-primary btn-sm">➕ إنشاء</button>
+            </form>
+          </div>
+
+          <!-- Add content — two collapsible methods -->
+          <div class="profile-card">
+            <h4 class="sub-section-title">➕ إضافة نصوص</h4>
+
+            <details class="add-method" open>
+              <summary>✍️ كتابة نص يدوياً</summary>
+              <form id="add-user-content-form" class="auth-form" style="margin-top: 0.75rem;">
+                <div class="form-group">
+                  <label>المجلد المستهدف</label>
+                  <select id="add-folder-target" class="select-minimal" style="width: 100%;"></select>
+                </div>
+                <div class="form-group">
+                  <textarea id="user-content-input" rows="3" class="input-minimal"
+                    style="border: 1px solid var(--border-color); border-radius: 4px; padding: 0.6rem; font-family: var(--font-mono); resize: vertical;"
+                    placeholder="اكتب كلمة، جملة، أو فقرة..."
+                    required></textarea>
+                </div>
+                <div class="classify-preview" id="classify-preview">
+                  التصنيف التلقائي: <span id="classify-badge" class="size-badge">—</span>
+                  <span class="focus-instruction" id="classify-stats">— حروف، — كلمات</span>
+                </div>
+                <button type="submit" class="btn-primary btn-sm" style="margin-top: 0.5rem;">💾 إضافة</button>
+              </form>
+            </details>
+
+            <details class="add-method">
+              <summary>📤 رفع ملف Excel / CSV</summary>
+              <div style="margin-top: 0.75rem;">
+                <p class="focus-instruction" style="margin-bottom: 0.6rem;">
+                  العمود الأول = النصوص. الترتيب في الملف يُحفظ كما هو.
+                </p>
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                  <label>المجلد المستهدف</label>
+                  <select id="upload-folder-target" class="select-minimal" style="width: 100%;"></select>
+                </div>
+                <div class="upload-zone" id="upload-zone">
+                  <input type="file" id="excel-file-input" accept=".xlsx,.xls,.csv" style="display: none;">
+                  <div class="upload-zone-content">
+                    <div style="font-size: 1.6rem;">📂</div>
+                    <div style="font-weight: 600; margin: 0.4rem 0;">اسحب الملف هنا أو اضغط للاختيار</div>
+                    <button type="button" class="btn-secondary btn-sm" id="download-template-btn" style="margin-top: 0.6rem;">
+                      📋 تحميل قالب Excel
+                    </button>
+                  </div>
+                </div>
+                <div id="upload-result" style="margin-top: 1rem; display: none;"></div>
+              </div>
+            </details>
+          </div>
+
+          <!-- Library table -->
+          <div class="profile-card">
+            <h4 class="sub-section-title">
+              📋 نصوصي <span class="profile-card-subtitle" id="user-content-count">(0)</span>
+            </h4>
+            <div class="user-content-filter">
+              <div class="filter-group">
+                <label>المجلد</label>
+                <select id="filter-folder" class="select-minimal"></select>
+              </div>
+              <div class="filter-group">
+                <label>الحجم</label>
+                <select id="filter-user-content" class="select-minimal">
+                  <option value="all">الكل</option>
+                </select>
+              </div>
+              <button type="button" id="delete-all-btn" class="btn-danger" title="حذف كل نصوصي">
+                🗑 حذف الكل
+              </button>
+            </div>
+
+            <div id="delete-all-panel" class="delete-all-panel" style="display: none;">
+              <div class="delete-all-warning">
+                ⚠️ سيتم حذف <strong id="delete-all-count">0</strong> نص نهائياً. لا يمكن التراجع.
+              </div>
+              <label style="font-size: 0.85rem; font-weight: 600; margin-top: 0.5rem;">
+                للتأكيد، اكتب كلمة المرور:
+              </label>
+              <input type="password" id="delete-all-password" class="input-minimal"
+                placeholder="كلمة المرور..." autocomplete="current-password">
+              <div class="auth-error" id="delete-all-error"></div>
+              <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                <button type="button" id="confirm-delete-all" class="btn-danger">🗑 احذف نهائياً</button>
+                <button type="button" id="cancel-delete-all" class="btn-secondary">إلغاء</button>
+              </div>
+            </div>
+
+            <div class="history-table-container" style="margin-top: 0.75rem;">
+              <table class="history-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>النص</th>
+                    <th>المجلد</th>
+                    <th>التصنيف</th>
+                    <th>المصدر</th>
+                    <th>التاريخ</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="user-content-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ▶ Panel: Display Behavior (v2.6) -->
+      <div class="profile-panel" data-panel="display">
+        <div class="profile-card">
+          <h3 class="profile-card-title">🎨 التحكم في العرض / Display Behavior</h3>
+
+          <div class="settings-row" style="flex-direction: column; align-items: stretch;">
+            <span class="settings-label" style="min-width: auto;">⏭️ بعد الانتهاء من الفقرة:</span>
+            <div class="advance-mode-options" style="display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.5rem;">
+              <label class="radio-row">
+                <input type="radio" name="advance-mode" value="auto">
+                <div><strong>تلقائي</strong><br><small>تنتقل للفقرة التالية مباشرة بدون توقف</small></div>
+              </label>
+              <label class="radio-row">
+                <input type="radio" name="advance-mode" value="enter" checked>
+                <div><strong>اضغط Enter</strong><br><small>يظهر ملخص سريع، اضغط Enter للانتقال</small></div>
+              </label>
+              <label class="radio-row">
+                <input type="radio" name="advance-mode" value="button">
+                <div><strong>اضغط زر التالي</strong><br><small>يظهر ملخص كامل، تختار يدوياً متى تنتقل</small></div>
+              </label>
+            </div>
+          </div>
+
+          <div class="settings-row" style="flex-direction: column; align-items: stretch; margin-top: 1rem;">
+            <label class="settings-label" style="min-width: auto;">⏸️ إيقاف العداد تلقائياً عند الخمول:</label>
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.4rem;">
+              <input type="number" id="idle-pause-seconds" class="input-minimal"
+                min="0" max="60" value="5" style="width: 80px; border: 1px solid var(--border-color); padding: 0.4rem; border-radius: 4px;">
+              <span style="font-size: 0.9rem;">ثانية</span>
+              <span class="focus-instruction" style="margin-inline-start: 1rem;">(0 = لا يتوقف تلقائياً)</span>
+            </div>
+          </div>
+
+          <div class="settings-row" style="flex-direction: column; align-items: stretch; margin-top: 1rem;">
+            <label class="settings-label" style="min-width: auto;">🔁 عدد التكرارات الافتراضية لكل فقرة:</label>
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.4rem;">
+              <input type="number" id="default-repetitions" class="input-minimal"
+                min="1" max="100" value="1" style="width: 80px; border: 1px solid var(--border-color); padding: 0.4rem; border-radius: 4px;">
+              <span style="font-size: 0.9rem;">مرة (1-100)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ▶ Panel: Performance Analysis (v2.6) -->
+      <div class="profile-panel" data-panel="performance">
+        <div class="profile-card">
+          <h3 class="profile-card-title">📊 ملخص الأداء العام / Overall Stats</h3>
+          <div class="perf-overview" id="perf-overview">
+            <!-- populated by JS -->
+          </div>
+        </div>
+
+        <div class="profile-card">
+          <h3 class="profile-card-title">❌ الحروف الأكثر خطأ / Most-Missed Characters</h3>
+          <ul class="error-list" id="perf-error-chars" style="min-height: 40px;">
+            <!-- populated by JS -->
+          </ul>
+        </div>
+
+        <div class="profile-card">
+          <h3 class="profile-card-title">📝 الكلمات الأكثر خطأ / Most-Missed Words</h3>
+          <ul class="error-list" id="perf-error-words" style="min-height: 40px;">
+            <!-- populated by JS -->
+          </ul>
+        </div>
+
+        <div class="profile-card">
+          <h3 class="profile-card-title">📜 السجل الكامل / Full History</h3>
+          <div class="history-table-container">
+            <table class="history-table">
+              <thead>
+                <tr>
+                  <th>التاريخ</th>
+                  <th>المسار</th>
+                  <th>المستوى</th>
+                  <th>الحجم</th>
+                  <th>WPM</th>
+                  <th>الدقة</th>
+                </tr>
+              </thead>
+              <tbody id="perf-history-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Guest notice (shown across panels) -->
+      <div class="profile-card" id="guest-notice" style="display: none;">
+        <h3 class="profile-card-title">🔒 سجل دخول لحفظ مكتبتك</h3>
+        <p>أنت تستخدم الموقع كزائر. المحتوى المخصص الذي تضيفه يُحفظ مؤقتاً على هذا الجهاز فقط. سجل دخول لربط مكتبتك بحسابك الشخصي.</p>
+        <button class="btn-primary" id="guest-login-btn" style="margin-top: 1rem;">👤 تسجيل دخول</button>
+      </div>
+
+        </main>
+      </div>
+
+    </section>
+
+    <!-- =========================== ADMIN =========================== -->
+    <section class="admin-section" id="admin-section" style="display: none;">
+      <div class="admin-header">
+        <h2 style="font-size: 1.5rem; font-weight: 700;">⚙️ لوحة تحكم المدير</h2>
+        <button id="admin-back-btn" class="btn-primary"><svg class="icon icon-sm"><use href="#i-chevron-start"/></svg> عودة</button>
+      </div>
+
+      <div class="auth-tabs" style="margin-bottom: 1.5rem; width: 100%;">
+        <button type="button" class="auth-tab active" id="admin-tab-content">إدارة المحتوى</button>
+        <button type="button" class="auth-tab" id="admin-tab-users">إدارة المستخدمين</button>
+      </div>
+
+      <!-- Content Panel -->
+      <div class="admin-panel-content" id="admin-panel-content-mgr">
+        <div class="admin-grid">
+          <div class="admin-card">
+            <h3 style="font-size: 1.1rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">✍️ إضافة فقرة جديدة</h3>
+            <form id="add-content-form" class="auth-form" style="gap: 1rem;">
+              <div class="form-group">
+                <label>المسار / Track</label>
+                <select id="admin-track" class="select-minimal" required style="width: 100%;">
+                  <option value="typing-en">تعلم الكتابة (EN)</option>
+                  <option value="typing-ar">تعلم الكتابة (AR)</option>
+                  <option value="english">تعلم الإنجليزية</option>
+                </select>
+              </div>
+              <div class="form-group english-only" style="display: none;">
+                <label>السبب / Reason</label>
+                <select id="admin-reason" class="select-minimal" style="width: 100%;"></select>
+              </div>
+              <div class="form-group english-only" style="display: none;">
+                <label>المستوى / Level</label>
+                <select id="admin-level" class="select-minimal" style="width: 100%;"></select>
+              </div>
+              <div class="form-group">
+                <label>الحجم / Size</label>
+                <select id="admin-size" class="select-minimal" required style="width: 100%;"></select>
+              </div>
+              <div class="form-group">
+                <label>المحتوى</label>
+                <textarea id="admin-content" rows="5" class="input-minimal" required style="border: 1px solid var(--border-color); border-radius: 4px; padding: 0.5rem; font-family: var(--font-mono); resize: vertical;"></textarea>
+              </div>
+              <button type="submit" class="btn-primary" style="width: 100%;">حفظ</button>
+            </form>
+          </div>
+
+          <div class="admin-card">
+            <h3 style="font-size: 1.1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">📋 المحتوى المخصص</h3>
+            <div style="overflow-y: auto; max-height: 480px;">
+              <table class="history-table" style="width: 100%; font-size: 0.85rem;">
+                <thead>
+                  <tr>
+                    <th>المسار</th>
+                    <th>التفاصيل</th>
+                    <th>إجراء</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-content-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Users Panel -->
+      <div class="admin-panel-content" id="admin-panel-users" style="display: none;">
+        <div class="admin-card">
+          <h3 style="font-size: 1.1rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">👥 المستخدمون المسجلون</h3>
+          <div class="history-table-container">
+            <table class="history-table">
+              <thead>
+                <tr>
+                  <th>اسم المستخدم</th>
+                  <th>البريد</th>
+                  <th>المسار</th>
+                  <th>المستوى</th>
+                  <th>محاولات</th>
+                  <th>WPM</th>
+                  <th>دقة</th>
+                  <th>إجراء</th>
+                </tr>
+              </thead>
+              <tbody id="admin-users-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <span>TypeFlow ♾️ — تعلم بحواسك، ابنِ ذاكرتك العضلية</span>
+      <span style="font-size: 0.75rem;">ESC لتفعيل/إلغاء وضع التركيز</span>
+    </footer>
+
+    <!-- Auth Modal -->
+    <div class="modal-overlay" id="auth-modal" style="display: none;">
+      <div class="auth-card">
+        <div class="auth-tabs">
+          <button type="button" class="auth-tab active" id="tab-login-btn">تسجيل دخول</button>
+          <button type="button" class="auth-tab" id="tab-signup-btn">إنشاء حساب</button>
+        </div>
+        <form id="login-form" class="auth-form">
+          <div class="form-group">
+            <label>اسم المستخدم</label>
+            <input type="text" id="login-username" class="input-minimal" required autocomplete="username">
+          </div>
+          <div class="form-group">
+            <label>كلمة المرور</label>
+            <input type="password" id="login-password" class="input-minimal" required autocomplete="current-password">
+          </div>
+          <div class="auth-error" id="login-error"></div>
+          <button type="submit" class="btn-primary" style="margin-top: 1.25rem; width: 100%;">دخول</button>
+        </form>
+        <form id="signup-form" class="auth-form" style="display: none;">
+          <div class="form-group">
+            <label>اسم المستخدم</label>
+            <input type="text" id="signup-username" class="input-minimal" required autocomplete="username">
+          </div>
+          <div class="form-group">
+            <label>البريد الإلكتروني</label>
+            <input type="email" id="signup-email" class="input-minimal" required autocomplete="email">
+          </div>
+          <div class="form-group">
+            <label>كلمة المرور (6+ أحرف)</label>
+            <input type="password" id="signup-password" class="input-minimal" minlength="6" required autocomplete="new-password">
+          </div>
+          <div class="auth-error" id="signup-error"></div>
+          <button type="submit" class="btn-primary" style="margin-top: 1.25rem; width: 100%;">إنشاء</button>
+        </form>
+        <button type="button" id="close-auth-btn" class="modal-close-btn">إغلاق</button>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="english-data.js"></script>
+  <script src="typing-data.js"></script>
+  <script src="audio.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
