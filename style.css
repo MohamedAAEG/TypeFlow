@@ -2165,7 +2165,9 @@ body.zen-mode .app-container {
 
 body.zen-mode .practice-section {
   min-height: 100vh;
+  flex-direction: column;   /* override the inline display:flex default (row) */
   justify-content: center;
+  align-items: stretch;     /* let the workbench fill the full width */
 }
 
 body.zen-mode .typing-workbench {
