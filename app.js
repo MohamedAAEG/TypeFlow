@@ -631,7 +631,13 @@ document.addEventListener("DOMContentLoaded", () => {
       <button class="selection-menu-item" data-action="copy">
         📋 نسخ النص
       </button>
+      <button class="selection-menu-item" data-action="translate">
+        🌐 ترجمة
+      </button>
       ${currentUser ? `
+        <button class="selection-menu-item" data-action="add-learning">
+          📚 أضف لقائمة التعلم
+        </button>
         <button class="selection-menu-item" data-action="add-quick">
           ✍️ أضف لمساحة العمل الحالية
         </button>
@@ -737,6 +743,89 @@ document.addEventListener("DOMContentLoaded", () => {
       setTimeout(closeSelectionMenu, 600);
       return;
     }
+    if (action === "translate") {
+      translateSelectedText(text);
+      return;
+    }
+    if (action === "add-learning") {
+      addToLearningList(text);
+      return;
+    }
+  }
+
+  function getLearningList() {
+    try { return JSON.parse(localStorage.getItem("typeflow_learning_list") || "[]"); } catch { return []; }
+  }
+  function setLearningList(list) {
+    localStorage.setItem("typeflow_learning_list", JSON.stringify(list));
+  }
+
+  function addToLearningList(text, translation) {
+    const list = getLearningList();
+    const duplicate = list.find(e => e.text === text);
+    if (duplicate) {
+      flashMenuFeedback("موجود بالفعل في قائمة التعلم");
+      setTimeout(closeSelectionMenu, 900);
+      return;
+    }
+    list.push({
+      id: Date.now() + Math.floor(Math.random() * 999),
+      text,
+      translation: translation || null,
+      addedAt: new Date().toISOString(),
+      user: currentUser ? currentUser.username : null
+    });
+    setLearningList(list);
+    flashMenuFeedback("✓ أُضيف لقائمة التعلم");
+    setTimeout(closeSelectionMenu, 700);
+  }
+
+  function translateSelectedText(text) {
+    if (!selectionMenuEl) return;
+    // Show loading state inside the translate button
+    const btn = selectionMenuEl.querySelector('[data-action="translate"]');
+    if (btn) { btn.textContent = "⏳ جارٍ الترجمة…"; btn.disabled = true; }
+
+    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|ar`;
+    fetch(url)
+      .then(r => r.json())
+      .then(data => {
+        const translation = data?.responseData?.translatedText || null;
+        if (!selectionMenuEl) return; // menu was closed
+        if (translation) {
+          showTranslationInMenu(text, translation);
+        } else {
+          flashMenuFeedback("تعذّرت الترجمة، حاول مرة أخرى");
+          setTimeout(closeSelectionMenu, 1200);
+        }
+      })
+      .catch(() => {
+        if (!selectionMenuEl) return;
+        flashMenuFeedback("لا يوجد اتصال بالإنترنت");
+        setTimeout(closeSelectionMenu, 1200);
+      });
+  }
+
+  function showTranslationInMenu(original, translation) {
+    if (!selectionMenuEl) return;
+    selectionMenuEl.innerHTML = `
+      <div class="selection-menu-translation-box">
+        <div class="selection-menu-translation-label">الترجمة</div>
+        <div class="selection-menu-translation-text" dir="rtl">${escapeHtml(translation)}</div>
+      </div>
+      ${currentUser ? `
+        <button class="selection-menu-item" id="smenu-save-learning" style="margin-top:0.4rem;">
+          📚 حفظ في قائمة التعلم
+        </button>
+      ` : ""}
+      <button class="selection-menu-item" style="color:var(--text-muted);margin-top:0.2rem;" id="smenu-close-tr">
+        ✕ إغلاق
+      </button>
+    `;
+    const saveBtn = selectionMenuEl.querySelector("#smenu-save-learning");
+    if (saveBtn) saveBtn.addEventListener("click", () => addToLearningList(original, translation));
+    const closeBtn = selectionMenuEl.querySelector("#smenu-close-tr");
+    if (closeBtn) closeBtn.addEventListener("click", closeSelectionMenu);
   }
 
   function flashMenuFeedback(msg) {

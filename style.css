@@ -2326,6 +2326,30 @@ body.zen-mode .settings-panel {
   overflow-y: auto;
 }
 
+.selection-menu-translation-box {
+  padding: 0.6rem 0.8rem;
+  background: var(--hover-bg);
+  border-radius: 6px;
+  margin: 0.3rem 0.4rem;
+}
+
+.selection-menu-translation-label {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-bottom: 0.3rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.selection-menu-translation-text {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-color);
+  line-height: 1.5;
+  font-family: 'Cairo', 'Amiri', sans-serif;
+}
+
 .selection-menu-info {
   padding: 0.4rem 0.8rem;
   font-size: 0.75rem;
