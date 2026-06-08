@@ -1012,7 +1012,14 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // Practice
-    workbench.addEventListener("click", () => typingInput.focus());
+    workbench.addEventListener("click", () => {
+      // Don't steal focus into the hidden input while the user is selecting
+      // text — focusing the input clears the selection before the context
+      // menu (translate / copy / add-to-learning) can read it.
+      const sel = window.getSelection();
+      if (sel && !sel.isCollapsed && sel.toString().trim()) return;
+      typingInput.focus();
+    });
     typingInput.addEventListener("input", handleTypingInput);
     typingInput.addEventListener("keydown", handleKeyDown);
     resetBtn.addEventListener("click", resetParagraph);
