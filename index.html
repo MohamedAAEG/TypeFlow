@@ -9,6 +9,9 @@
   <meta name="author" content="TypeFlow Team">
 
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>♾️</text></svg>">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#4d5bd6">
+  <link rel="apple-touch-icon" href="icon.svg">
   <link rel="stylesheet" href="style.css">
 
   <!-- SheetJS for Excel parsing -->
@@ -487,6 +490,16 @@
             </div>
           </form>
         </div>
+
+        <div class="profile-card">
+          <h3 class="profile-card-title">💾 النسخ الاحتياطي</h3>
+          <p class="focus-instruction">صدّر كل بياناتك (نصوصك، تقدّمك، قائمة التعلم) في ملف، أو استوردها على جهاز آخر.</p>
+          <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.75rem;">
+            <button type="button" id="export-data-btn" class="btn-secondary btn-sm">⬇️ تصدير بياناتي</button>
+            <button type="button" id="import-data-btn" class="btn-secondary btn-sm">⬆️ استيراد</button>
+            <input type="file" id="import-data-file" accept="application/json,.json" style="display: none;">
+          </div>
+        </div>
       </div>
 
       <!-- ▶ Panel: Learning Preferences (now standalone) -->
@@ -946,5 +959,14 @@
   <script src="typing-data.js"></script>
   <script src="audio.js"></script>
   <script src="app.js"></script>
+
+  <!-- PWA: offline support -->
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("sw.js").catch(() => {});
+      });
+    }
+  </script>
 </body>
 </html>

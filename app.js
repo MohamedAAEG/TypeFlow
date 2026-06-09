@@ -979,6 +979,42 @@ document.addEventListener("DOMContentLoaded", () => {
     }, 2600);
   }
 
+  // ============================ DATA BACKUP (export / import) ============================
+  function exportData() {
+    const data = {};
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith("typeflow_")) data[k] = localStorage.getItem(k);
+    }
+    const payload = { app: "typeflow", version: 1, exportedAt: new Date().toISOString(), data };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `typeflow-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    showToast("تم تصدير بياناتك", "success");
+  }
+
+  function importData(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      let parsed;
+      try { parsed = JSON.parse(reader.result); } catch (e) { showToast("تعذّر قراءة الملف", "error"); return; }
+      const data = parsed && parsed.data;
+      if (!data || typeof data !== "object") { showToast("ملف غير صالح", "error"); return; }
+      if (!confirm("سيتم استبدال بياناتك الحالية بالبيانات المستوردة. هل تريد المتابعة؟")) return;
+      Object.keys(data).forEach(k => { if (k.startsWith("typeflow_")) localStorage.setItem(k, data[k]); });
+      showToast("تم الاستيراد — جارٍ إعادة التحميل…", "success");
+      setTimeout(() => window.location.reload(), 1200);
+    };
+    reader.readAsText(file);
+  }
+
   // ============================ ROUTING ============================
   function hideAllSections() {
     if (landingSec)   landingSec.style.display   = "none";
@@ -1325,6 +1361,14 @@ document.addEventListener("DOMContentLoaded", () => {
     // Sidebar tabs in profile (v2.5)
     document.querySelectorAll(".profile-sidebar-tab").forEach(btn => {
       btn.addEventListener("click", () => switchProfilePanel(btn.dataset.panel));
+    });
+
+    // Data backup (export / import)
+    $("export-data-btn")?.addEventListener("click", exportData);
+    $("import-data-btn")?.addEventListener("click", () => $("import-data-file")?.click());
+    $("import-data-file")?.addEventListener("change", (e) => {
+      if (e.target.files && e.target.files[0]) importData(e.target.files[0]);
+      e.target.value = "";
     });
 
     // Learning list tab actions
