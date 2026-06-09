@@ -2251,6 +2251,106 @@ body.zen-mode .settings-panel {
 }
 
 /* ====================================================================
+   LEARNING LIST TAB
+   ==================================================================== */
+.learning-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.learning-head-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.learning-count {
+  display: inline-block;
+  min-width: 1.6rem;
+  padding: 0.05rem 0.5rem;
+  border-radius: 10px;
+  background-color: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.learning-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.learning-empty {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  text-align: center;
+  padding: 2rem 1rem;
+}
+
+.learning-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background-color: var(--hover-bg);
+}
+
+.learning-item-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.learning-text {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--text-color);
+  word-break: break-word;
+}
+
+.learning-tr {
+  font-family: 'Cairo', 'Amiri', sans-serif;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}
+
+.learning-date {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.learning-del {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background-color: var(--bg-color);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition-speed);
+}
+
+.learning-del:hover {
+  color: var(--error-color);
+  border-color: var(--error-color);
+}
+
+/* ====================================================================
    22. SELECTION CONTEXT MENU (V2.5)
    ==================================================================== */
 

@@ -99,6 +99,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (ws.type === "default") return `default:${ws.reason}:${ws.level}`;
     if (ws.type === "user")    return `user:${ws.folderId}`;
     if (ws.type === "typing")  return `typing:${ws.lang || "en"}`;
+    if (ws.type === "learning") return "learning";
     return "";
   }
 
@@ -116,6 +117,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (ws.type === "typing") {
       return `⌨️ تعلم الكتابة (${(ws.lang || "en").toUpperCase()})`;
     }
+    if (ws.type === "learning") return "📚 قائمة التعلم";
     return "—";
   }
 
@@ -780,17 +782,22 @@ document.addEventListener("DOMContentLoaded", () => {
     setTimeout(closeSelectionMenu, 700);
   }
 
+  // Shared translation helper (MyMemory). pair defaults to en|ar.
+  function fetchTranslation(text, pair) {
+    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${pair || "en|ar"}`;
+    return fetch(url)
+      .then(r => r.json())
+      .then(d => (d && d.responseData && d.responseData.translatedText) || null);
+  }
+
   function translateSelectedText(text) {
     if (!selectionMenuEl) return;
     // Show loading state inside the translate button
     const btn = selectionMenuEl.querySelector('[data-action="translate"]');
     if (btn) { btn.textContent = "⏳ جارٍ الترجمة…"; btn.disabled = true; }
 
-    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=en|ar`;
-    fetch(url)
-      .then(r => r.json())
-      .then(data => {
-        const translation = data?.responseData?.translatedText || null;
+    fetchTranslation(text)
+      .then(translation => {
         if (!selectionMenuEl) return; // menu was closed
         if (translation) {
           showTranslationInMenu(text, translation);
@@ -828,6 +835,94 @@ document.addEventListener("DOMContentLoaded", () => {
     if (closeBtn) closeBtn.addEventListener("click", closeSelectionMenu);
   }
 
+  // ============================ LEARNING LIST TAB ============================
+  // Only the current user's saved items (items carry the username that saved them).
+  function getMyLearningList() {
+    const uname = currentUser ? currentUser.username : null;
+    return getLearningList().filter(i => (i.user || null) === uname);
+  }
+
+  function renderLearningTab() {
+    const container = $("learning-list");
+    const countEl = $("learning-count");
+    if (!container) return;
+    const items = getMyLearningList().slice().reverse(); // newest first
+    if (countEl) countEl.textContent = String(items.length);
+    if (items.length === 0) {
+      container.innerHTML = `<p class="learning-empty">لا توجد كلمات محفوظة بعد. حدّد أي نص أثناء التدريب واختر "📚 أضف لقائمة التعلم".</p>`;
+      return;
+    }
+    container.innerHTML = items.map(it => {
+      let date = "";
+      try { date = new Date(it.addedAt).toLocaleDateString("ar-EG"); } catch (e) {}
+      const tr = it.translation
+        ? `<div class="learning-tr" dir="rtl">${escapeHtml(it.translation)}</div>`
+        : `<button class="btn-secondary btn-sm" data-learn-translate="${it.id}">🌐 ترجمة</button>`;
+      return `
+        <div class="learning-item">
+          <div class="learning-item-body">
+            <div class="learning-text" dir="ltr">${escapeHtml(it.text)}</div>
+            ${tr}
+            <div class="learning-date">${date}</div>
+          </div>
+          <button class="learning-del" title="حذف" data-learn-del="${it.id}">
+            <svg class="icon"><use href="#i-trash"/></svg>
+          </button>
+        </div>`;
+    }).join("");
+  }
+
+  function removeLearningItem(id) {
+    setLearningList(getLearningList().filter(i => String(i.id) !== String(id)));
+    renderLearningTab();
+  }
+
+  function clearLearningList() {
+    if (getMyLearningList().length === 0) return;
+    if (!confirm("سيتم حذف كل الكلمات المحفوظة في قائمة التعلم. هل تريد المتابعة؟")) return;
+    const uname = currentUser ? currentUser.username : null;
+    setLearningList(getLearningList().filter(i => (i.user || null) !== uname));
+    renderLearningTab();
+  }
+
+  function translateOneLearning(id) {
+    const list = getLearningList();
+    const item = list.find(i => String(i.id) === String(id));
+    if (!item) return;
+    const btn = document.querySelector(`[data-learn-translate="${id}"]`);
+    if (btn) { btn.textContent = "⏳ جارٍ الترجمة…"; btn.disabled = true; }
+    fetchTranslation(item.text)
+      .then(tr => {
+        if (tr) { item.translation = tr; setLearningList(list); }
+        renderLearningTab();
+      })
+      .catch(() => { if (btn) { btn.textContent = "🌐 ترجمة"; btn.disabled = false; } });
+  }
+
+  async function translateMissingLearning() {
+    const uname = currentUser ? currentUser.username : null;
+    const list = getLearningList();
+    const missing = list.filter(i => (i.user || null) === uname && !i.translation);
+    if (missing.length === 0) return;
+    const btn = $("learning-translate-missing");
+    if (btn) { btn.disabled = true; btn.textContent = "⏳ جارٍ الترجمة…"; }
+    for (const it of missing) {
+      try {
+        const tr = await fetchTranslation(it.text);
+        if (tr) { it.translation = tr; setLearningList(list); }
+      } catch (e) { /* keep going */ }
+    }
+    if (btn) { btn.disabled = false; btn.textContent = "🌐 ترجمة الناقص"; }
+    renderLearningTab();
+  }
+
+  function practiceLearningList() {
+    if (getMyLearningList().length === 0) return;
+    profile.workspace = { type: "learning" };
+    localStorage.setItem(STORAGE.profile, JSON.stringify(profile));
+    closeProfile(); // re-enters practice mode with the new workspace
+  }
+
   function flashMenuFeedback(msg) {
     if (!selectionMenuEl) return;
     selectionMenuEl.innerHTML = `
@@ -862,7 +957,8 @@ document.addEventListener("DOMContentLoaded", () => {
     preferences: ["preferences"],
     texts:       ["texts"],
     display:     ["display"],
-    performance: ["performance"]
+    performance: ["performance"],
+    learning:    ["learning"]
   };
 
   function switchProfilePanel(tab) {
@@ -877,6 +973,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Lazy-render heavy panels
     if (tab === "performance") renderPerformanceTab();
     if (tab === "display") renderDisplayTab();
+    if (tab === "learning") renderLearningTab();
   }
 
   // ============================ DISPLAY TAB ============================
@@ -1129,6 +1226,17 @@ document.addEventListener("DOMContentLoaded", () => {
     // Sidebar tabs in profile (v2.5)
     document.querySelectorAll(".profile-sidebar-tab").forEach(btn => {
       btn.addEventListener("click", () => switchProfilePanel(btn.dataset.panel));
+    });
+
+    // Learning list tab actions
+    $("learning-clear")?.addEventListener("click", clearLearningList);
+    $("learning-translate-missing")?.addEventListener("click", translateMissingLearning);
+    $("learning-practice")?.addEventListener("click", practiceLearningList);
+    $("learning-list")?.addEventListener("click", (e) => {
+      const del = e.target.closest("[data-learn-del]");
+      if (del) { removeLearningItem(del.dataset.learnDel); return; }
+      const tr = e.target.closest("[data-learn-translate]");
+      if (tr) { translateOneLearning(tr.dataset.learnTranslate); return; }
     });
 
     // Profile
@@ -1470,6 +1578,10 @@ document.addEventListener("DOMContentLoaded", () => {
           .map(c => c.content);
         pool = pool.concat(base, adminCustoms);
       });
+
+    } else if (ws.type === "learning") {
+      // Practice on the saved learning-list words/phrases
+      pool = getMyLearningList().map(i => i.text);
     }
 
     currentParagraphs = pool;
@@ -1501,6 +1613,8 @@ document.addEventListener("DOMContentLoaded", () => {
       `;
     } else if (ws.type === "typing") {
       contextInfo.innerHTML = `<span class="context-chip">⌨️ تعلم الكتابة (${(ws.lang || "en").toUpperCase()})</span>`;
+    } else if (ws.type === "learning") {
+      contextInfo.innerHTML = `<span class="context-chip">📚 قائمة التعلم</span>`;
     }
   }
 

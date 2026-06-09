@@ -442,6 +442,9 @@
           <button type="button" class="profile-sidebar-tab" data-panel="performance">
             <svg class="icon"><use href="#i-chart"/></svg> <span class="tab-text">تحليل الأداء</span>
           </button>
+          <button type="button" class="profile-sidebar-tab" data-panel="learning">
+            <svg class="icon"><use href="#i-save"/></svg> <span class="tab-text">قائمة التعلم</span>
+          </button>
         </aside>
 
         <main class="profile-main">
@@ -764,6 +767,23 @@
               </thead>
               <tbody id="perf-history-body"></tbody>
             </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ▶ Panel: Learning list -->
+      <div class="profile-panel" data-panel="learning">
+        <div class="profile-card">
+          <div class="learning-head">
+            <h3 class="profile-card-title">📚 قائمة التعلم <span class="learning-count" id="learning-count">0</span></h3>
+            <div class="learning-head-actions">
+              <button type="button" class="btn-secondary btn-sm" id="learning-translate-missing">🌐 ترجمة الناقص</button>
+              <button type="button" class="btn-secondary btn-sm" id="learning-practice">✍️ تدرّب عليها</button>
+              <button type="button" class="btn-secondary btn-sm" id="learning-clear">🗑️ مسح الكل</button>
+            </div>
+          </div>
+          <div class="learning-list" id="learning-list">
+            <!-- populated by JS -->
           </div>
         </div>
       </div>
