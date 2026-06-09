@@ -846,6 +846,8 @@ document.addEventListener("DOMContentLoaded", () => {
     adminSec.style.display      = "none";
     historySec.style.display    = "none";
     document.body.classList.remove("zen-mode");
+    isFocusMode = false;
+    focusBtn.classList.remove("active");
   }
 
   function showLanding() {
@@ -1119,6 +1121,8 @@ document.addEventListener("DOMContentLoaded", () => {
     if (zenExitBtn) {
       zenExitBtn.addEventListener("click", () => {
         document.body.classList.remove("zen-mode");
+        isFocusMode = false;
+        focusBtn.classList.remove("active");
       });
     }
 
@@ -1245,9 +1249,12 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function toggleFocus() {
-    isFocusMode = !isFocusMode;
-    document.body.classList.toggle("focus-mode", isFocusMode);
-    focusBtn.classList.toggle("active", isFocusMode);
+    // zen-mode is the real full-screen focus experience. Toggle it from the
+    // actual current state so the header button and the floating exit button
+    // stay in sync — and re-entry works after exiting.
+    const inZen = document.body.classList.toggle("zen-mode");
+    isFocusMode = inZen;
+    focusBtn.classList.toggle("active", inZen);
   }
 
   function handleSoundChange(e) {
@@ -1390,6 +1397,8 @@ document.addEventListener("DOMContentLoaded", () => {
     practiceSec.style.display = "flex";
     restartOnboardingBtn.style.display = "inline-flex";
     document.body.classList.add("zen-mode");  // v2.5 — full-screen focus
+    isFocusMode = true;
+    focusBtn.classList.add("active");
 
     // Defaults for new controls
     if (!profile.source) profile.source = "all";
