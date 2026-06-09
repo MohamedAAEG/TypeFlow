@@ -290,6 +290,38 @@
             style="border: 1px solid var(--border-color); border-radius: 6px; padding: 0.4rem 0.6rem; width: 100px; font-family: var(--font-mono); font-weight: 600;">
         </div>
 
+        <!-- Live assist: pronunciation + translation -->
+        <div class="settings-group">
+          <label class="settings-group-label">🔊 النطق والترجمة:</label>
+          <div class="assist-settings">
+            <label class="assist-row">
+              <span>اللهجة</span>
+              <select id="assist-accent" class="select-minimal">
+                <option value="us">أمريكية (US)</option>
+                <option value="gb">بريطانية (GB)</option>
+              </select>
+            </label>
+            <label class="assist-row">
+              <span>لغة الترجمة</span>
+              <select id="assist-lang" class="select-minimal">
+                <option value="ar">العربية</option>
+                <option value="fr">الفرنسية</option>
+                <option value="es">الإسبانية</option>
+                <option value="de">الألمانية</option>
+                <option value="tr">التركية</option>
+              </select>
+            </label>
+            <label class="assist-row assist-toggle">
+              <input type="checkbox" id="assist-speak" checked>
+              <span>نطق الكلمة تلقائياً</span>
+            </label>
+            <label class="assist-row assist-toggle">
+              <input type="checkbox" id="assist-translations" checked>
+              <span>عرض الترجمة (الكلمة والجملة)</span>
+            </label>
+          </div>
+        </div>
+
         <!-- Folder picker (v2.6) — visible only when user has folders with content -->
         <div class="settings-group" id="folder-source-group" style="display: none;">
           <label class="settings-group-label">📂 مجلد المصدر:</label>
@@ -323,8 +355,20 @@
       <main class="typing-workbench" id="typing-workbench" tabindex="0" aria-label="Typing Practice Area">
         <input type="text" id="typing-input" class="typing-input" autocomplete="off" autofocus>
 
+        <!-- Live assist: current word pronunciation + translation -->
+        <div class="word-assist" id="word-assist" style="display: none;">
+          <button type="button" class="word-assist-speak" id="word-assist-speak" title="نطق الكلمة" aria-label="نطق الكلمة">🔊</button>
+          <span class="word-assist-word" id="word-assist-word" dir="ltr">—</span>
+          <span class="word-assist-tr" id="word-assist-tr" dir="rtl"></span>
+        </div>
+
         <div class="typing-text-container" id="typing-text-container">
           <!-- character spans injected by JS -->
+        </div>
+
+        <!-- Live assist: whole-sentence translation -->
+        <div class="sentence-assist-bar" id="sentence-assist-bar" style="display: none;">
+          <span class="sentence-assist" id="sentence-assist" dir="rtl"></span>
         </div>
 
         <div class="control-strip">

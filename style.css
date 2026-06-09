@@ -2351,6 +2351,77 @@ body.zen-mode .settings-panel {
 }
 
 /* ====================================================================
+   LIVE ASSIST (pronunciation + translation)
+   ==================================================================== */
+.word-assist {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.word-assist-speak {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-color);
+  cursor: pointer;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-speed);
+}
+
+.word-assist-speak:hover { border-color: var(--accent); }
+
+.word-assist-word {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--accent);
+}
+
+.word-assist-tr {
+  font-family: 'Cairo', 'Amiri', sans-serif;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}
+
+.sentence-assist-bar {
+  margin-top: 1.25rem;
+  padding-top: 0.85rem;
+  border-top: 1px dashed var(--border-color);
+  text-align: center;
+  max-width: 900px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.sentence-assist {
+  font-family: 'Cairo', 'Amiri', sans-serif;
+  color: var(--text-muted);
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+/* assist settings inside the settings panel */
+.assist-settings { display: flex; flex-direction: column; gap: 0.55rem; }
+.assist-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.85rem;
+}
+.assist-row.assist-toggle { justify-content: flex-start; gap: 0.5rem; cursor: pointer; }
+.assist-row select { min-width: 140px; }
+
+/* ====================================================================
    PROGRESS CHART (performance tab)
    ==================================================================== */
 .perf-chart .progress-chart {

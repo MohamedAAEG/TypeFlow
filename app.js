@@ -295,6 +295,11 @@ document.addEventListener("DOMContentLoaded", () => {
   let currentText = "";
   let typedText = "";
   let isStarted = false;
+  // Live-assist state (declared early — initApp() runs before the live-assist block)
+  let currentWordSpans = [];
+  let activeWordIdx = -1;
+  let liveAssistOn = false;
+  let ttsVoices = [];
   let isCompleted = false;
   let startTime = null;
   let timerInterval = null;
@@ -517,6 +522,10 @@ document.addEventListener("DOMContentLoaded", () => {
     bindEvents();
     bindTextSelectionMenu();  // v2.5
     updateAuthUI();
+
+    // Speech synthesis voices load asynchronously
+    loadTtsVoices();
+    if (window.speechSynthesis) speechSynthesis.onvoiceschanged = loadTtsVoices;
 
     // Route v2.5:
     //   - no currentUser  → show landing
@@ -1364,6 +1373,36 @@ document.addEventListener("DOMContentLoaded", () => {
       btn.addEventListener("click", () => switchProfilePanel(btn.dataset.panel));
     });
 
+    // Live assist (pronunciation + translation)
+    $("word-assist-speak")?.addEventListener("click", () => {
+      const w = $("word-assist-word")?.textContent;
+      if (w && w !== "—") speakWord(w);
+    });
+    $("assist-accent")?.addEventListener("change", (e) => {
+      if (!profile) return;
+      profile.accent = e.target.value;
+      localStorage.setItem(STORAGE.profile, JSON.stringify(profile));
+    });
+    $("assist-lang")?.addEventListener("change", (e) => {
+      if (!profile) return;
+      profile.translateTo = e.target.value;
+      localStorage.setItem(STORAGE.profile, JSON.stringify(profile));
+      initLiveAssist(); // re-translate in the new language
+    });
+    $("assist-speak")?.addEventListener("change", (e) => {
+      if (!profile) return;
+      profile.speakEnabled = e.target.checked;
+      localStorage.setItem(STORAGE.profile, JSON.stringify(profile));
+      refreshAssistVisibility();
+    });
+    $("assist-translations")?.addEventListener("change", (e) => {
+      if (!profile) return;
+      profile.showTranslations = e.target.checked;
+      localStorage.setItem(STORAGE.profile, JSON.stringify(profile));
+      refreshAssistVisibility();
+      if (e.target.checked) initLiveAssist();
+    });
+
     // Data backup (export / import)
     $("export-data-btn")?.addEventListener("click", exportData);
     $("import-data-btn")?.addEventListener("click", () => $("import-data-file")?.click());
@@ -1678,6 +1717,7 @@ document.addEventListener("DOMContentLoaded", () => {
     syncResetButtonVisibility();
     populateFolderSelectors();
     populatePracticeFolderSource();   // v2.6
+    syncAssistControls();
     renderHistory();
     startIdleChecker();               // v2.6
 
@@ -1971,6 +2011,8 @@ document.addEventListener("DOMContentLoaded", () => {
     workbench.style.display = "flex";
     typingInput.value = "";
     typingInput.focus();
+
+    initLiveAssist();
   }
 
   function resetEngineState() {
@@ -2106,6 +2148,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
     typedText = newTyped;
+    updateLiveAssist();
 
     correctChars = 0;
     spans.forEach((span, idx) => {
@@ -2135,6 +2178,113 @@ document.addEventListener("DOMContentLoaded", () => {
     while (start > 0 && /\S/.test(text[start - 1])) start--;
     while (end < text.length && /\S/.test(text[end])) end++;
     return text.slice(start, end).trim();
+  }
+
+  // ============================ LIVE ASSIST: speak + translate ============================
+  function loadTtsVoices() { if (window.speechSynthesis) ttsVoices = speechSynthesis.getVoices() || []; }
+  function accentLang()      { return (profile && profile.accent === "gb") ? "en-GB" : "en-US"; }
+  function translateTarget() { return (profile && profile.translateTo) || "ar"; }
+  function speakOn()         { return !(profile && profile.speakEnabled === false); }
+  function transOn()         { return !(profile && profile.showTranslations === false); }
+  function trDir()           { return translateTarget() === "ar" ? "rtl" : "ltr"; }
+
+  function pickVoice(lang) {
+    if (!ttsVoices.length) loadTtsVoices();
+    const low = lang.toLowerCase();
+    return ttsVoices.find(v => (v.lang || "").toLowerCase() === low)
+        || ttsVoices.find(v => (v.lang || "").toLowerCase().replace("_", "-") === low)
+        || ttsVoices.find(v => (v.lang || "").toLowerCase().startsWith("en"))
+        || null;
+  }
+
+  function speakWord(word) {
+    if (!word || !window.speechSynthesis) return;
+    try {
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(word);
+      u.lang = accentLang();
+      const v = pickVoice(u.lang);
+      if (v) u.voice = v;
+      u.rate = 0.95;
+      speechSynthesis.speak(u);
+    } catch (e) {}
+  }
+
+  function computeWordSpans(text) {
+    const spans = [];
+    const re = /[\p{L}\p{M}'’\-]+/gu;
+    let m;
+    while ((m = re.exec(text)) !== null) spans.push({ word: m[0], start: m.index, end: m.index + m[0].length });
+    return spans;
+  }
+
+  function activeWordIndexAt(spans, i) {
+    for (let k = 0; k < spans.length; k++) if (spans[k].end >= i) return k;
+    return spans.length ? spans.length - 1 : -1;
+  }
+
+  function setWordAssist(word) {
+    const wEl = $("word-assist-word");
+    const tEl = $("word-assist-tr");
+    if (wEl) wEl.textContent = word || "—";
+    if (!tEl) return;
+    tEl.dir = trDir();
+    if (!transOn() || !word) { tEl.textContent = ""; return; }
+    tEl.textContent = "…";
+    fetchTranslation(word, "en|" + translateTarget())
+      .then(tr => { if ($("word-assist-word") && $("word-assist-word").textContent === word) tEl.textContent = tr || "—"; })
+      .catch(() => { tEl.textContent = "—"; });
+  }
+
+  function updateSentenceAssist() {
+    const el = $("sentence-assist");
+    if (!el) return;
+    el.dir = trDir();
+    if (!transOn() || !currentText) { el.textContent = ""; return; }
+    el.textContent = "…";
+    const snapshot = currentText;
+    fetchTranslation(currentText, "en|" + translateTarget())
+      .then(tr => { if (currentText === snapshot) el.textContent = tr || ""; })
+      .catch(() => { el.textContent = ""; });
+  }
+
+  function refreshAssistVisibility() {
+    const wb = $("word-assist");
+    const sb = $("sentence-assist-bar");
+    if (wb) wb.style.display = (liveAssistOn && (speakOn() || transOn())) ? "flex" : "none";
+    if (sb) sb.style.display = (liveAssistOn && transOn()) ? "block" : "none";
+  }
+
+  // Recompute assist for the freshly loaded paragraph (English text only).
+  function initLiveAssist() {
+    liveAssistOn = !!currentText && !/[؀-ۿ]/.test(currentText);
+    currentWordSpans = liveAssistOn ? computeWordSpans(currentText) : [];
+    activeWordIdx = -1;
+    refreshAssistVisibility();
+    if (liveAssistOn) {
+      setWordAssist(currentWordSpans[0] ? currentWordSpans[0].word : "");
+      updateSentenceAssist();
+    }
+  }
+
+  // Track the active word while typing; speak it when it changes.
+  function updateLiveAssist() {
+    if (!liveAssistOn || !currentWordSpans.length) return;
+    const wi = activeWordIndexAt(currentWordSpans, typedText.length);
+    if (wi !== activeWordIdx && wi >= 0) {
+      activeWordIdx = wi;
+      const w = currentWordSpans[wi].word;
+      setWordAssist(w);
+      if (speakOn()) speakWord(w);
+    }
+  }
+
+  // Reflect current profile values onto the settings-panel controls.
+  function syncAssistControls() {
+    const a = $("assist-accent");       if (a) a.value = (profile && profile.accent === "gb") ? "gb" : "us";
+    const l = $("assist-lang");         if (l) l.value = translateTarget();
+    const s = $("assist-speak");        if (s) s.checked = speakOn();
+    const t = $("assist-translations"); if (t) t.checked = transOn();
   }
 
   function updateTimer() {
