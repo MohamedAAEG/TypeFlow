@@ -782,12 +782,35 @@ document.addEventListener("DOMContentLoaded", () => {
     setTimeout(closeSelectionMenu, 700);
   }
 
-  // Shared translation helper (MyMemory). pair defaults to en|ar.
+  // Arabic text → translate to English, otherwise English → Arabic.
+  function detectLangPair(text) {
+    return /[؀-ۿ]/.test(text) ? "ar|en" : "en|ar";
+  }
+
+  function getTranslationCache() {
+    try { return JSON.parse(localStorage.getItem("typeflow_translation_cache") || "{}"); } catch { return {}; }
+  }
+  function setTranslationCache(cache) {
+    // Cap the cache so it can't grow without bound (drop oldest keys).
+    const keys = Object.keys(cache);
+    if (keys.length > 500) keys.slice(0, keys.length - 500).forEach(k => delete cache[k]);
+    localStorage.setItem("typeflow_translation_cache", JSON.stringify(cache));
+  }
+
+  // Shared translation helper (MyMemory). Auto-detects direction and caches results.
   function fetchTranslation(text, pair) {
-    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${pair || "en|ar"}`;
+    const p = pair || detectLangPair(text);
+    const cacheKey = `${p}::${text}`;
+    const cache = getTranslationCache();
+    if (cache[cacheKey]) return Promise.resolve(cache[cacheKey]);
+    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${p}`;
     return fetch(url)
       .then(r => r.json())
-      .then(d => (d && d.responseData && d.responseData.translatedText) || null);
+      .then(d => {
+        const tr = (d && d.responseData && d.responseData.translatedText) || null;
+        if (tr) { cache[cacheKey] = tr; setTranslationCache(cache); }
+        return tr;
+      });
   }
 
   function translateSelectedText(text) {
@@ -815,10 +838,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function showTranslationInMenu(original, translation) {
     if (!selectionMenuEl) return;
+    const dir = /[؀-ۿ]/.test(translation) ? "rtl" : "ltr";
     selectionMenuEl.innerHTML = `
       <div class="selection-menu-translation-box">
         <div class="selection-menu-translation-label">الترجمة</div>
-        <div class="selection-menu-translation-text" dir="rtl">${escapeHtml(translation)}</div>
+        <div class="selection-menu-translation-text" dir="${dir}">${escapeHtml(translation)}</div>
       </div>
       ${currentUser ? `
         <button class="selection-menu-item" id="smenu-save-learning" style="margin-top:0.4rem;">
@@ -855,8 +879,9 @@ document.addEventListener("DOMContentLoaded", () => {
     container.innerHTML = items.map(it => {
       let date = "";
       try { date = new Date(it.addedAt).toLocaleDateString("ar-EG"); } catch (e) {}
+      const trDir = it.translation && /[؀-ۿ]/.test(it.translation) ? "rtl" : "ltr";
       const tr = it.translation
-        ? `<div class="learning-tr" dir="rtl">${escapeHtml(it.translation)}</div>`
+        ? `<div class="learning-tr" dir="${trDir}">${escapeHtml(it.translation)}</div>`
         : `<button class="btn-secondary btn-sm" data-learn-translate="${it.id}">🌐 ترجمة</button>`;
       return `
         <div class="learning-item">
