@@ -563,6 +563,110 @@ const ENGLISH_CONTENT = {
     B2: { words: [], chunks: [], small: [], medium: [], large: [] },
     C1: { words: [], chunks: [], small: [], medium: [], large: [] },
     C2: { words: [], chunks: [], small: [], medium: [], large: [] }
+  },
+
+  // ============= FREELANCE / العمل الحر =============
+  freelance: {
+    A1: {
+      words: ["client", "project", "deadline", "invoice", "payment", "skill", "remote", "task", "rate", "contract", "portfolio", "email", "deliver", "review", "budget"],
+      chunks: ["send the invoice", "meet the deadline", "a new client", "work from home", "deliver the project", "set a fair rate"],
+      small: [
+        "I work from home as a freelancer.",
+        "The client sent me a new project today.",
+        "I must deliver the work before Friday.",
+        "Please send the invoice after the job.",
+        "A good portfolio helps you find clients.",
+        "I set a fair rate for my time.",
+        "We agreed on the budget by email.",
+        "Each task has its own deadline."
+      ],
+      medium: [
+        "I started freelancing two years ago. At first I had only one client. I worked hard and I delivered good work on time. Soon the client told a friend about me. Now I have many clients and a busy week. I love the freedom to plan my own day.",
+        "A freelancer must be honest about time. When a client asks for a project, I think about the work first. Then I give a clear deadline and a fair price. I never promise a date that I cannot meet. This simple habit keeps my clients happy and brings more work."
+      ],
+      large: []
+    },
+    A2: {
+      words: ["negotiate", "scope", "milestone", "retainer", "deliverable", "feedback", "revision", "proposal", "niche", "testimonial", "upfront", "self-employed", "workflow"],
+      chunks: ["negotiate the rate", "define the scope", "ask for feedback", "send a proposal", "request a deposit", "build a portfolio"],
+      small: [
+        "Always define the scope before you start a project.",
+        "I ask for a deposit upfront on large jobs.",
+        "Clear feedback helps me improve the next revision.",
+        "A strong proposal explains the value, not just the price.",
+        "Choosing a niche makes it easier to find the right clients."
+      ],
+      medium: [
+        "The hardest part of freelancing is not the work itself but managing the business around it. You have to find clients, write proposals, negotiate rates, track your time, and send invoices. Many talented people struggle because they treat these tasks as an afterthought. The freelancers who succeed treat their business with the same care they give to their craft."
+      ],
+      large: []
+    },
+    B1: {
+      words: ["sustainable", "diversify", "boundaries", "positioning", "recurring", "pipeline", "undercharge", "specialize", "reputation"],
+      chunks: ["manage scope creep", "build a steady pipeline", "set clear boundaries", "raise your rates"],
+      small: [
+        "Scope creep is the slow expansion of a project beyond its original agreement.",
+        "Diversifying your clients protects you from losing all your income at once."
+      ],
+      medium: [
+        "Sustainable freelancing depends less on raw talent than on the systems you build around your work. A reliable pipeline of leads means you never have to accept bad clients out of desperation. Clear contracts prevent the slow expansion of unpaid work. Regular rate increases keep your income aligned with your growing skill. None of this is glamorous, but it is what separates a brief experiment from a lasting career."
+      ],
+      large: []
+    },
+    B2: { words: [], chunks: [], small: [], medium: [], large: [] },
+    C1: { words: [], chunks: [], small: [], medium: [], large: [] },
+    C2: { words: [], chunks: [], small: [], medium: [], large: [] }
+  },
+
+  // ============= COURSES / الكورسات العالمية =============
+  courses: {
+    A1: {
+      words: ["course", "lesson", "lecture", "video", "quiz", "teacher", "student", "learn", "study", "module", "online", "certificate", "topic", "note", "exam"],
+      chunks: ["watch the lecture", "take a short quiz", "finish the lesson", "take good notes", "earn a certificate"],
+      small: [
+        "I am taking an online course this month.",
+        "Each lesson has a short video and a quiz.",
+        "I watch one lecture every evening.",
+        "Good notes help me remember the topic.",
+        "I will earn a certificate at the end.",
+        "The teacher explains every step slowly.",
+        "I study a little every day after work."
+      ],
+      medium: [
+        "I love learning new things from online courses. Every evening I open my laptop and watch one short lesson. I take notes in a small book. After the video I do a quick quiz to check my memory. Some topics are hard, so I watch the lesson twice. Step by step, I am building a new skill from home.",
+        "Online courses changed the way I learn. In the past I had to travel to a class at a fixed time. Now I can study at home, at my own speed. I can pause the video, repeat a hard part, and learn when I feel fresh. The freedom makes it much easier to keep going."
+      ],
+      large: []
+    },
+    A2: {
+      words: ["curriculum", "enroll", "assignment", "deadline", "progress", "instructor", "syllabus", "self-paced", "discussion", "feedback", "review", "completion"],
+      chunks: ["enroll in a course", "submit the assignment", "follow the syllabus", "track your progress", "join the discussion"],
+      small: [
+        "I enrolled in a self-paced course on writing.",
+        "The instructor gives feedback on every assignment.",
+        "Following the syllabus keeps my study on track.",
+        "I review each module before I move to the next one."
+      ],
+      medium: [
+        "The biggest challenge with online courses is not the difficulty of the material but the discipline to finish. Without a fixed class and a teacher who notices when you are absent, it is easy to fall behind. The students who complete their courses usually set a small daily goal, study at the same time each day, and treat their own deadlines as seriously as a real exam."
+      ],
+      large: []
+    },
+    B1: {
+      words: ["autonomy", "accountability", "retention", "mastery", "structured", "credential", "cohort", "attrition", "supplement"],
+      chunks: ["stay accountable", "build a study routine", "apply what you learn", "avoid passive watching"],
+      small: [
+        "Passive watching feels productive but rarely leads to real mastery.",
+        "A study cohort adds the accountability that solo learning often lacks."
+      ],
+      medium: [
+        "The promise of online education is genuine freedom: anyone with a connection can learn almost anything for little or no cost. The hidden challenge is that this same freedom removes the external structure that once kept learners on track. The most successful self-directed students replace that lost structure deliberately. They schedule their study, apply each new idea to a real project, and find a community that expects them to show up. Freedom without structure produces a long list of half-finished courses; freedom with self-imposed structure produces genuine expertise."
+      ],
+      large: []
+    },
+    B2: { words: [], chunks: [], small: [], medium: [], large: [] },
+    C1: { words: [], chunks: [], small: [], medium: [], large: [] },
+    C2: { words: [], chunks: [], small: [], medium: [], large: [] }
   }
 };
 
@@ -637,7 +741,7 @@ const GENERAL_FALLBACK = {
   },
   B2: {
     words: ["nuanced", "implicit", "underlying", "framework", "paradigm", "trajectory", "interplay", "convergence"],
-    chunks: [],
+    chunks: ["to a significant extent", "with respect to", "in light of this", "it could be argued that"],
     small: [
       "The nuanced argument required careful reading and considerable patience.",
       "Underlying assumptions often shape conclusions more than the explicit evidence does."
@@ -651,7 +755,7 @@ const GENERAL_FALLBACK = {
   },
   C1: {
     words: ["epistemological", "ontological", "heuristic", "axiomatic", "isomorphic"],
-    chunks: [],
+    chunks: ["all things considered", "by virtue of", "insofar as", "notwithstanding the above"],
     small: [
       "The epistemological assumptions underlying the methodology deserve more scrutiny than they typically receive."
     ],
@@ -664,7 +768,7 @@ const GENERAL_FALLBACK = {
   },
   C2: {
     words: ["hermeneutic", "phenomenological", "dialectical", "performative"],
-    chunks: [],
+    chunks: ["be that as it may", "for all intents and purposes", "to the extent that"],
     small: ["The hermeneutic circle resists any clean resolution."],
     medium: [
       "Mature intellectual judgment is distinguished less by the accumulation of correct opinions than by the cultivated capacity to hold competing considerations in productive tension without prematurely collapsing them into false resolution."
