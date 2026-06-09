@@ -27,6 +27,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   let usersDB = JSON.parse(localStorage.getItem(STORAGE.users) || "[]");
   if (!usersDB.some(u => u.username.toLowerCase() === "admin")) {
+    // Seeded as legacy plain-text; upgraded to a salted hash on first login.
     usersDB.push({ username: "admin", email: "admin@typeflow.com", password: "admin123" });
     localStorage.setItem(STORAGE.users, JSON.stringify(usersDB));
   }
@@ -2328,13 +2329,61 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  function handleLogin(e) {
+  // ============================ PASSWORD HASHING ============================
+  // SHA-256 with a per-user random salt. Note: this still runs in the browser,
+  // so it is NOT a substitute for a real backend — but it removes plain-text
+  // passwords from localStorage. Falls back to plain text in insecure contexts
+  // (e.g. opening index.html via file://, where crypto.subtle is unavailable).
+  function randomSalt() {
+    const a = new Uint8Array(16);
+    if (window.crypto && crypto.getRandomValues) crypto.getRandomValues(a);
+    else for (let i = 0; i < a.length; i++) a[i] = Math.floor(Math.random() * 256);
+    return [...a].map(b => b.toString(16).padStart(2, "0")).join("");
+  }
+
+  async function hashPassword(password, salt) {
+    if (!(window.crypto && window.crypto.subtle)) return null; // insecure context
+    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(salt + ":" + password));
+    return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
+  }
+
+  async function upgradeUserPassword(user, password) {
+    const salt = randomSalt();
+    const hash = await hashPassword(password, salt);
+    if (!hash) return; // can't hash here; leave the legacy field as-is
+    user.salt = salt;
+    user.passwordHash = hash;
+    delete user.password;
+    const idx = usersDB.findIndex(u => u.username.toLowerCase() === user.username.toLowerCase());
+    if (idx >= 0) { usersDB[idx] = user; localStorage.setItem(STORAGE.users, JSON.stringify(usersDB)); }
+    if (currentUser && currentUser.username.toLowerCase() === user.username.toLowerCase()) {
+      currentUser = user;
+      localStorage.setItem(STORAGE.current, JSON.stringify(user));
+    }
+  }
+
+  // Verify a password against a user record; migrates legacy plain-text on success.
+  async function verifyPassword(password, user) {
+    if (!user) return false;
+    if (user.passwordHash && user.salt) {
+      const h = await hashPassword(password, user.salt);
+      return h !== null && h === user.passwordHash;
+    }
+    if (typeof user.password === "string") {
+      if (user.password === password) { await upgradeUserPassword(user, password); return true; }
+      return false;
+    }
+    return false;
+  }
+
+  async function handleLogin(e) {
     e.preventDefault();
     loginErr.style.display = "none";
     const u = $("login-username").value.trim();
     const p = $("login-password").value;
-    const user = usersDB.find(x => x.username.toLowerCase() === u.toLowerCase() && x.password === p);
-    if (user) {
+    const user = usersDB.find(x => x.username.toLowerCase() === u.toLowerCase());
+    const ok = user ? await verifyPassword(p, user) : false;
+    if (ok) {
       currentUser = user;
       localStorage.setItem(STORAGE.current, JSON.stringify(user));
       updateAuthUI();
@@ -2350,7 +2399,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  function handleSignup(e) {
+  async function handleSignup(e) {
     e.preventDefault();
     signupErr.style.display = "none";
     const u = $("signup-username").value.trim();
@@ -2366,7 +2415,11 @@ document.addEventListener("DOMContentLoaded", () => {
       signupErr.style.display = "block";
       return;
     }
-    const nu = { username: u, email: em, password: p };
+    const salt = randomSalt();
+    const hash = await hashPassword(p, salt);
+    const nu = hash
+      ? { username: u, email: em, salt, passwordHash: hash }
+      : { username: u, email: em, password: p }; // insecure-context fallback
     usersDB.push(nu);
     localStorage.setItem(STORAGE.users, JSON.stringify(usersDB));
     currentUser = nu;
@@ -2722,7 +2775,7 @@ document.addEventListener("DOMContentLoaded", () => {
     deleteAllError.style.display = "none";
   }
 
-  function confirmDeleteAll() {
+  async function confirmDeleteAll() {
     deleteAllError.style.display = "none";
 
     // Guests have no password — block them entirely
@@ -2738,7 +2791,7 @@ document.addEventListener("DOMContentLoaded", () => {
       deleteAllError.style.display = "block";
       return;
     }
-    if (pw !== currentUser.password) {
+    if (!(await verifyPassword(pw, currentUser))) {
       deleteAllError.textContent = "كلمة المرور غير صحيحة.";
       deleteAllError.style.display = "block";
       typingAudio.playKeySound(true);
@@ -2903,12 +2956,12 @@ document.addEventListener("DOMContentLoaded", () => {
     changePassOk.style.display = "none";
   }
 
-  function handleChangePassword(e) {
+  async function handleChangePassword(e) {
     e.preventDefault();
     changePassErr.style.display = "none";
     changePassOk.style.display = "none";
     if (!currentUser) return;
-    if (curPassInput.value !== currentUser.password) {
+    if (!(await verifyPassword(curPassInput.value, currentUser))) {
       changePassErr.textContent = "كلمة المرور الحالية غير صحيحة";
       changePassErr.style.display = "block";
       return;
@@ -2923,10 +2976,18 @@ document.addEventListener("DOMContentLoaded", () => {
       changePassErr.style.display = "block";
       return;
     }
-    // Update DB
+    // Update DB (hash the new password; fall back to plain in insecure contexts)
     const idx = usersDB.findIndex(u => u.username.toLowerCase() === currentUser.username.toLowerCase());
     if (idx >= 0) {
-      usersDB[idx].password = newPassInput.value;
+      const salt = randomSalt();
+      const hash = await hashPassword(newPassInput.value, salt);
+      if (hash) {
+        usersDB[idx].salt = salt;
+        usersDB[idx].passwordHash = hash;
+        delete usersDB[idx].password;
+      } else {
+        usersDB[idx].password = newPassInput.value;
+      }
       localStorage.setItem(STORAGE.users, JSON.stringify(usersDB));
       currentUser = usersDB[idx];
       localStorage.setItem(STORAGE.current, JSON.stringify(currentUser));
