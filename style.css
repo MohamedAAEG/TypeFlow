@@ -742,37 +742,6 @@ header {
   font-weight: 600;
 }
 
-/* 9. ADHD Focus Mode (Triggered by body class) */
-body.focus-mode header,
-body.focus-mode .track-selection-section,
-body.focus-mode .section-title,
-body.focus-mode .history-section,
-body.focus-mode footer {
-  opacity: 0;
-  pointer-events: none;
-  transform: translateY(-10px);
-  position: absolute;
-  z-index: -999;
-}
-
-body.focus-mode .app-container {
-  padding: 6rem 1.5rem;
-}
-
-body.focus-mode .typing-workbench {
-  border-color: var(--border-color);
-  box-shadow: none;
-}
-
-body.focus-mode .metrics-row {
-  opacity: 0.2; /* Dims the live WPM/Accuracy meters to reduce performance anxiety */
-  transition: opacity var(--transition-speed);
-}
-
-body.focus-mode .metrics-row:hover {
-  opacity: 1; /* Highlights WPM when hovered in case user wants a quick look */
-}
-
 /* 10. Footer styling */
 footer {
   text-align: center;
@@ -964,10 +933,6 @@ body.dark-mode .modal-overlay {
   align-items: center;
 }
 
-body.focus-mode .modal-overlay {
-  display: none !important; /* Prevent modal popups in focus mode if key triggers occur */
-}
-
 /* 12. Admin Dashboard Styles */
 .admin-section {
   display: flex;
@@ -1016,11 +981,6 @@ body.focus-mode .modal-overlay {
 .admin-profile {
   display: flex;
   align-items: center;
-}
-
-/* Hide admin panel in focus mode */
-body.focus-mode .admin-section {
-  display: none !important;
 }
 
 @media (max-width: 800px) {
