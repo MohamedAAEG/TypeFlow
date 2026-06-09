@@ -300,6 +300,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let activeWordIdx = -1;
   let liveAssistOn = false;
   let ttsVoices = [];
+  let currentAssistWord = "";
   let isCompleted = false;
   let startTime = null;
   let timerInterval = null;
@@ -1276,6 +1277,11 @@ document.addEventListener("DOMContentLoaded", () => {
       const open = settingsPanel.style.display !== "none";
       settingsPanel.style.display = open ? "none" : "flex";
       toggleSettingsBtn.classList.toggle("active", !open);
+      // Closing the panel → return focus to the typing area so the user can
+      // resume typing immediately without an extra click.
+      if (open && typeof typingInput !== "undefined" && practiceSec.style.display !== "none") {
+        typingInput.focus();
+      }
     });
 
     // Reset defaults (only meaningful in default workspaces)
@@ -1375,8 +1381,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Live assist (pronunciation + translation)
     $("word-assist-speak")?.addEventListener("click", () => {
-      const w = $("word-assist-word")?.textContent;
-      if (w && w !== "—") speakWord(w);
+      if (currentAssistWord) speakWord(currentAssistWord);
     });
     $("assist-accent")?.addEventListener("change", (e) => {
       if (!profile) return;
@@ -1983,6 +1988,13 @@ document.addEventListener("DOMContentLoaded", () => {
     if (typeof currentText !== "string") currentText = String(currentText || "");
     paraCounter.textContent = `${currentIndex + 1} / ${currentParagraphs.length}`;
 
+    // Workspace paragraph progress bar
+    const paraFill = $("para-progress-bar");
+    const paraCont = $("para-progress-container");
+    const totalParas = currentParagraphs.length;
+    if (paraFill) paraFill.style.width = totalParas > 0 ? `${((currentIndex + 1) / totalParas) * 100}%` : "0%";
+    if (paraCont) paraCont.title = `النص ${currentIndex + 1} من ${totalParas}`;
+
     // Repetition counter visible only when reps > 1
     const reps = parseInt(profile.repetitions, 10) || 1;
     if (reps > 1) {
@@ -2057,22 +2069,29 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // ============================ PAUSE / IDLE ============================
+  // Single source of truth for the pause button icon/state (manual OR idle).
+  function setPauseButtonState(paused) {
+    const pauseBtn = $("pause-btn");
+    if (!pauseBtn) return;
+    pauseBtn.innerHTML = `<svg class="icon"><use href="#i-${paused ? "play" : "pause"}"/></svg>`;
+    pauseBtn.classList.toggle("active", paused);
+  }
+
   function togglePause() {
     if (!isStarted || isCompleted) return;
+    // If the counter is idle-paused, the button acts as a resume control.
+    if (idleIsPaused) { resumeIfIdlePaused(); typingInput.focus(); return; }
     manuallyPaused = !manuallyPaused;
-    const pauseBtn = $("pause-btn");
     if (manuallyPaused) {
       if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
       pausedAtMs = Date.now();
-      if (pauseBtn) { pauseBtn.innerHTML = '<svg class="icon"><use href="#i-play"/></svg>'; pauseBtn.classList.add("active"); }
     } else {
-      if (startTime && pausedAtMs) {
-        startTime += Date.now() - pausedAtMs;
-      }
+      if (startTime && pausedAtMs) startTime += Date.now() - pausedAtMs;
       pausedAtMs = 0;
       if (!timerInterval) timerInterval = setInterval(updateTimer, 500);
-      if (pauseBtn) { pauseBtn.innerHTML = '<svg class="icon"><use href="#i-pause"/></svg>'; pauseBtn.classList.remove("active"); }
+      typingInput.focus();
     }
+    setPauseButtonState(manuallyPaused);
   }
   let pausedAtMs = 0;
 
@@ -2088,6 +2107,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       idleIsPaused = false;
       if (idleBadgeEl) { idleBadgeEl.remove(); idleBadgeEl = null; }
+      setPauseButtonState(false); // keep the pause button in sync
     }
   }
   let idlePausedAtMs = 0;
@@ -2103,6 +2123,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
         idlePausedAtMs = Date.now();
         idleIsPaused = true;
+        setPauseButtonState(true); // keep the pause button in sync with the counter
         if (!idleBadgeEl) {
           idleBadgeEl = document.createElement("div");
           idleBadgeEl.className = "idle-paused-badge";
@@ -2223,17 +2244,41 @@ document.addEventListener("DOMContentLoaded", () => {
     return spans.length ? spans.length - 1 : -1;
   }
 
-  function setWordAssist(word) {
+  // A small context window: current word + one neighbour each side, within the
+  // same sentence — so the translation reflects the word's actual meaning here.
+  function wordWindow(spans, idx) {
+    let lo = idx, hi = idx;
+    if (idx - 1 >= 0 && !/[.!?]/.test(currentText.slice(spans[idx - 1].end, spans[idx].start))) lo = idx - 1;
+    if (idx + 1 < spans.length && !/[.!?]/.test(currentText.slice(spans[idx].end, spans[idx + 1].start))) hi = idx + 1;
+    return { start: spans[lo].start, end: spans[hi].end, wordStart: spans[idx].start, wordEnd: spans[idx].end };
+  }
+
+  function setWordAssist(spans, idx) {
     const wEl = $("word-assist-word");
     const tEl = $("word-assist-tr");
-    if (wEl) wEl.textContent = word || "—";
+    if (!spans || idx < 0 || idx >= spans.length) {
+      if (wEl) wEl.textContent = "—";
+      if (tEl) tEl.textContent = "";
+      currentAssistWord = "";
+      return;
+    }
+    const win = wordWindow(spans, idx);
+    const phrase = currentText.slice(win.start, win.end);
+    const theWord = spans[idx].word;
+    currentAssistWord = theWord;
+    if (wEl) {
+      const before = currentText.slice(win.start, win.wordStart);
+      const word = currentText.slice(win.wordStart, win.wordEnd);
+      const after = currentText.slice(win.wordEnd, win.end);
+      wEl.innerHTML = `${escapeHtml(before)}<b>${escapeHtml(word)}</b>${escapeHtml(after)}`;
+    }
     if (!tEl) return;
     tEl.dir = trDir();
-    if (!transOn() || !word) { tEl.textContent = ""; return; }
+    if (!transOn()) { tEl.textContent = ""; return; }
     tEl.textContent = "…";
-    fetchTranslation(word, "en|" + translateTarget())
-      .then(tr => { if ($("word-assist-word") && $("word-assist-word").textContent === word) tEl.textContent = tr || "—"; })
-      .catch(() => { tEl.textContent = "—"; });
+    fetchTranslation(phrase, "en|" + translateTarget())
+      .then(tr => { if (currentAssistWord === theWord) tEl.textContent = tr || "—"; })
+      .catch(() => { if (currentAssistWord === theWord) tEl.textContent = "—"; });
   }
 
   function updateSentenceAssist() {
@@ -2262,7 +2307,7 @@ document.addEventListener("DOMContentLoaded", () => {
     activeWordIdx = -1;
     refreshAssistVisibility();
     if (liveAssistOn) {
-      setWordAssist(currentWordSpans[0] ? currentWordSpans[0].word : "");
+      setWordAssist(currentWordSpans, 0);
       updateSentenceAssist();
     }
   }
@@ -2273,9 +2318,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const wi = activeWordIndexAt(currentWordSpans, typedText.length);
     if (wi !== activeWordIdx && wi >= 0) {
       activeWordIdx = wi;
-      const w = currentWordSpans[wi].word;
-      setWordAssist(w);
-      if (speakOn()) speakWord(w);
+      setWordAssist(currentWordSpans, wi);
+      if (speakOn()) speakWord(currentWordSpans[wi].word);
     }
   }
 
