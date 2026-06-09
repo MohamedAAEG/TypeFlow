@@ -301,6 +301,14 @@ document.addEventListener("DOMContentLoaded", () => {
   let liveAssistOn = false;
   let ttsVoices = [];
   let currentAssistWord = "";
+  // Pronunciation backend config — fill in to enable (see BACKEND_SETUP.md).
+  // While these stay as placeholders the app uses the browser voice + free
+  // translation, so everything keeps working.
+  const SUPA_URL  = "<<SUPABASE_URL>>";
+  const SUPA_ANON = "<<SUPABASE_ANON_KEY>>";
+  const audioObjectUrls = new Map();    // "accent:word" -> object URL (in-memory)
+  const dbWordTranslations = new Map(); // "lang:word"   -> translation
+  let _audioIdb = null;
   let isCompleted = false;
   let startTime = null;
   let timerInterval = null;
@@ -2218,7 +2226,8 @@ document.addEventListener("DOMContentLoaded", () => {
         || null;
   }
 
-  function speakWord(word) {
+  // Browser speech-synthesis fallback.
+  function speakWordTTS(word) {
     if (!word || !window.speechSynthesis) return;
     try {
       speechSynthesis.cancel();
@@ -2229,6 +2238,85 @@ document.addEventListener("DOMContentLoaded", () => {
       u.rate = 0.95;
       speechSynthesis.speak(u);
     } catch (e) {}
+  }
+
+  // Prefer the cached human (Polly) recording; fall back to the browser voice.
+  function speakWord(word) {
+    if (!word) return;
+    if (assistBackendEnabled()) {
+      const url = audioObjectUrls.get(accentKey() + ":" + word.toLowerCase());
+      if (url) { try { new Audio(url).play(); return; } catch (e) {} }
+    }
+    speakWordTTS(word);
+  }
+
+  // ---- Pronunciation backend (Supabase + Amazon Polly) ----
+  function assistBackendEnabled() {
+    return SUPA_URL && SUPA_URL.indexOf("<<") === -1 && SUPA_ANON && SUPA_ANON.indexOf("<<") === -1;
+  }
+  function accentKey() { return (profile && profile.accent === "gb") ? "gb" : "us"; }
+
+  function audioIdbOpen() {
+    if (_audioIdb) return _audioIdb;
+    _audioIdb = new Promise((resolve) => {
+      try {
+        const req = indexedDB.open("typeflow-audio", 1);
+        req.onupgradeneeded = () => req.result.createObjectStore("audio");
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => resolve(null);
+      } catch (e) { resolve(null); }
+    });
+    return _audioIdb;
+  }
+  async function audioIdbGet(key) {
+    const db = await audioIdbOpen(); if (!db) return null;
+    return new Promise((resolve) => {
+      try { const r = db.transaction("audio").objectStore("audio").get(key); r.onsuccess = () => resolve(r.result || null); r.onerror = () => resolve(null); }
+      catch (e) { resolve(null); }
+    });
+  }
+  async function audioIdbSet(key, blob) {
+    const db = await audioIdbOpen(); if (!db) return;
+    try { db.transaction("audio", "readwrite").objectStore("audio").put(blob, key); } catch (e) {}
+  }
+
+  // Ensure a word's audio blob is cached locally; returns an object URL or null.
+  async function ensureAudio(word, audioUrl) {
+    const key = accentKey() + ":" + word.toLowerCase();
+    if (audioObjectUrls.has(key)) return audioObjectUrls.get(key);
+    let blob = await audioIdbGet(key);
+    if (!blob && audioUrl) {
+      try { blob = await fetch(audioUrl).then(r => r.ok ? r.blob() : null); if (blob) audioIdbSet(key, blob); }
+      catch (e) { blob = null; }
+    }
+    if (!blob) return null;
+    const url = URL.createObjectURL(blob);
+    audioObjectUrls.set(key, url);
+    return url;
+  }
+
+  // On paragraph load: batch-fetch this paragraph's words (audio + translation)
+  // from the DB and pre-load the audio into the browser cache.
+  async function prefetchParagraphAssist() {
+    if (!assistBackendEnabled() || !liveAssistOn || !currentWordSpans.length) return;
+    const accent = accentKey();
+    const lang = translateTarget();
+    const words = [...new Set(currentWordSpans.map(s => s.word.toLowerCase()))];
+    try {
+      const res = await fetch(`${SUPA_URL}/functions/v1/tts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPA_ANON}`, "apikey": SUPA_ANON },
+        body: JSON.stringify({ words, accent, translateTo: lang }),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      (data.results || []).forEach(r => {
+        if (r.translation) dbWordTranslations.set(lang + ":" + r.word.toLowerCase(), r.translation);
+        if (r.audioUrl) ensureAudio(r.word, r.audioUrl); // prefetch blob
+      });
+      // Refresh the currently shown word now that curated data is in.
+      if (liveAssistOn) setWordAssist(currentWordSpans, activeWordIdx >= 0 ? activeWordIdx : 0);
+    } catch (e) { /* stay on the browser-voice / free-translation fallback */ }
   }
 
   function computeWordSpans(text) {
@@ -2266,17 +2354,27 @@ document.addEventListener("DOMContentLoaded", () => {
     const phrase = currentText.slice(win.start, win.end);
     const theWord = spans[idx].word;
     currentAssistWord = theWord;
+    const lang = translateTarget();
+    const dbTr = assistBackendEnabled() ? dbWordTranslations.get(lang + ":" + theWord.toLowerCase()) : null;
+
     if (wEl) {
-      const before = currentText.slice(win.start, win.wordStart);
-      const word = currentText.slice(win.wordStart, win.wordEnd);
-      const after = currentText.slice(win.wordEnd, win.end);
-      wEl.innerHTML = `${escapeHtml(before)}<b>${escapeHtml(word)}</b>${escapeHtml(after)}`;
+      if (dbTr) {
+        // Curated per-word translation from the DB → show the single word.
+        wEl.innerHTML = `<b>${escapeHtml(theWord)}</b>`;
+      } else {
+        const before = currentText.slice(win.start, win.wordStart);
+        const word = currentText.slice(win.wordStart, win.wordEnd);
+        const after = currentText.slice(win.wordEnd, win.end);
+        wEl.innerHTML = `${escapeHtml(before)}<b>${escapeHtml(word)}</b>${escapeHtml(after)}`;
+      }
     }
     if (!tEl) return;
     tEl.dir = trDir();
     if (!transOn()) { tEl.textContent = ""; return; }
+    if (dbTr) { tEl.textContent = dbTr; return; }
+    // Fallback: contextual phrase translation via the free service.
     tEl.textContent = "…";
-    fetchTranslation(phrase, "en|" + translateTarget())
+    fetchTranslation(phrase, "en|" + lang)
       .then(tr => { if (currentAssistWord === theWord) tEl.textContent = tr || "—"; })
       .catch(() => { if (currentAssistWord === theWord) tEl.textContent = "—"; });
   }
@@ -2309,6 +2407,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (liveAssistOn) {
       setWordAssist(currentWordSpans, 0);
       updateSentenceAssist();
+      prefetchParagraphAssist(); // pull audio + curated translations from the DB
     }
   }
 
