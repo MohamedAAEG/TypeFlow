@@ -2351,6 +2351,48 @@ body.zen-mode .settings-panel {
 }
 
 /* ====================================================================
+   TOAST NOTIFICATIONS
+   ==================================================================== */
+#toast-container {
+  position: fixed;
+  bottom: 5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: center;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.toast {
+  padding: 0.7rem 1.2rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #fff;
+  box-shadow: 0 8px 24px var(--shadow-color);
+  max-width: 90vw;
+  animation: toast-in 0.25s ease-out;
+}
+
+.toast-success { background-color: var(--success-color); }
+.toast-error   { background-color: var(--error-color); }
+.toast-info    { background-color: var(--text-color); color: var(--bg-color); }
+
+.toast-hide {
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.3s, transform 0.3s;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ====================================================================
    22. SELECTION CONTEXT MENU (V2.5)
    ==================================================================== */
 

@@ -908,6 +908,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const uname = currentUser ? currentUser.username : null;
     setLearningList(getLearningList().filter(i => (i.user || null) !== uname));
     renderLearningTab();
+    showToast("تم مسح قائمة التعلم", "info");
   }
 
   function translateOneLearning(id) {
@@ -928,23 +929,26 @@ document.addEventListener("DOMContentLoaded", () => {
     const uname = currentUser ? currentUser.username : null;
     const list = getLearningList();
     const missing = list.filter(i => (i.user || null) === uname && !i.translation);
-    if (missing.length === 0) return;
+    if (missing.length === 0) { showToast("كل العناصر مترجمة بالفعل", "info"); return; }
     const btn = $("learning-translate-missing");
     if (btn) { btn.disabled = true; btn.textContent = "⏳ جارٍ الترجمة…"; }
+    let done = 0;
     for (const it of missing) {
       try {
         const tr = await fetchTranslation(it.text);
-        if (tr) { it.translation = tr; setLearningList(list); }
+        if (tr) { it.translation = tr; setLearningList(list); done++; }
       } catch (e) { /* keep going */ }
     }
     if (btn) { btn.disabled = false; btn.textContent = "🌐 ترجمة الناقص"; }
     renderLearningTab();
+    showToast(done > 0 ? `تمت ترجمة ${done} عنصر` : "تعذّرت الترجمة، تحقق من الاتصال", done > 0 ? "success" : "error");
   }
 
   function practiceLearningList() {
-    if (getMyLearningList().length === 0) return;
+    if (getMyLearningList().length === 0) { showToast("قائمة التعلم فارغة", "info"); return; }
     profile.workspace = { type: "learning" };
     localStorage.setItem(STORAGE.profile, JSON.stringify(profile));
+    showToast("بدأ التدريب على قائمة التعلم 📚", "success");
     closeProfile(); // re-enters practice mode with the new workspace
   }
 
@@ -955,6 +959,24 @@ document.addEventListener("DOMContentLoaded", () => {
         ${msg}
       </div>
     `;
+  }
+
+  // Lightweight non-blocking notification (bottom-center, auto-dismiss).
+  function showToast(msg, type) {
+    let cont = document.getElementById("toast-container");
+    if (!cont) {
+      cont = document.createElement("div");
+      cont.id = "toast-container";
+      document.body.appendChild(cont);
+    }
+    const t = document.createElement("div");
+    t.className = "toast toast-" + (type || "success");
+    t.textContent = msg;
+    cont.appendChild(t);
+    setTimeout(() => {
+      t.classList.add("toast-hide");
+      setTimeout(() => t.remove(), 300);
+    }, 2600);
   }
 
   // ============================ ROUTING ============================
@@ -1361,6 +1383,20 @@ document.addEventListener("DOMContentLoaded", () => {
     // ESC for focus mode
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && isFocusMode) toggleFocus();
+    });
+
+    // Alt-based shortcuts (only while practicing; Alt combos don't type text)
+    document.addEventListener("keydown", (e) => {
+      if (!e.altKey || e.ctrlKey || e.metaKey) return;
+      if (practiceSec.style.display === "none") return;
+      const actions = {
+        KeyN: () => nextParagraph(),
+        KeyP: () => prevParagraph(),
+        KeyR: () => resetParagraph(),
+        KeyS: () => $("toggle-settings-btn")?.click(),
+        KeyF: () => toggleFocus()
+      };
+      if (actions[e.code]) { e.preventDefault(); actions[e.code](); }
     });
   }
 
