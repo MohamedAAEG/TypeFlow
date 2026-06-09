@@ -1057,6 +1057,53 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // ============================ PERFORMANCE TAB ============================
+  // Daily streak (current + best) computed from attempt timestamps.
+  function midnightOf(ts) { const d = new Date(ts); d.setHours(0, 0, 0, 0); return d.getTime(); }
+  function computeStreak(attempts) {
+    const DAY = 86400000;
+    const days = new Set(attempts.filter(a => a.ts).map(a => midnightOf(a.ts)));
+    if (days.size === 0) return { current: 0, best: 0 };
+    const sorted = [...days].sort((a, b) => a - b);
+    let best = 1, run = 1;
+    for (let i = 1; i < sorted.length; i++) {
+      if (sorted[i] - sorted[i - 1] === DAY) { run++; best = Math.max(best, run); }
+      else run = 1;
+    }
+    const today = midnightOf(Date.now());
+    let cursor = days.has(today) ? today : (days.has(today - DAY) ? today - DAY : null);
+    let current = 0;
+    while (cursor !== null && days.has(cursor)) { current++; cursor -= DAY; }
+    return { current, best: Math.max(best, current) };
+  }
+
+  // Simple two-line SVG chart (WPM + accuracy) over the recent attempts.
+  function renderProgressChart(attempts) {
+    const el = $("perf-chart");
+    if (!el) return;
+    const data = attempts.slice(0, 20).reverse(); // oldest → newest
+    if (data.length < 2) {
+      el.innerHTML = `<p class="focus-instruction">تحتاج محاولتين على الأقل لعرض الرسم البياني.</p>`;
+      return;
+    }
+    const W = 600, H = 160, pad = 24;
+    const wpms = data.map(d => d.wpm || 0);
+    const accs = data.map(d => d.accuracy || 0);
+    const maxW = Math.max(...wpms, 10);
+    const x = i => pad + (i * (W - 2 * pad) / (data.length - 1));
+    const yW = v => H - pad - (v / maxW) * (H - 2 * pad);
+    const yA = v => H - pad - (v / 100) * (H - 2 * pad);
+    const path = (arr, y) => arr.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+    el.innerHTML = `
+      <svg viewBox="0 0 ${W} ${H}" class="progress-chart" preserveAspectRatio="none" role="img" aria-label="تطور السرعة والدقة">
+        <path d="${path(accs, yA)}" fill="none" stroke="var(--success-color)" stroke-width="2" opacity="0.55"/>
+        <path d="${path(wpms, yW)}" fill="none" stroke="var(--accent)" stroke-width="2.5"/>
+      </svg>
+      <div class="chart-legend">
+        <span><i style="background:var(--accent)"></i> السرعة (WPM)</span>
+        <span><i style="background:var(--success-color)"></i> الدقة (%)</span>
+      </div>`;
+  }
+
   function renderPerformanceTab() {
     const target = currentUser ? currentUser.username : "guest";
     const attempts = historyData.filter(h => (h.username || "guest") === target);
@@ -1071,15 +1118,20 @@ document.addEventListener("DOMContentLoaded", () => {
         const avgAcc = Math.round(attempts.reduce((s, h) => s + (h.accuracy || 0), 0) / attempts.length);
         const bestWpm = Math.max(...attempts.map(h => h.wpm || 0));
         const totalTime = attempts.reduce((s, h) => s + (h.time || 0), 0);
+        const streak = computeStreak(attempts);
         overview.innerHTML = `
           <div class="perf-stat"><div class="perf-stat-val">${attempts.length}</div><div class="perf-stat-label">محاولة</div></div>
           <div class="perf-stat"><div class="perf-stat-val">${avgWpm}</div><div class="perf-stat-label">متوسط WPM</div></div>
           <div class="perf-stat"><div class="perf-stat-val">${avgAcc}%</div><div class="perf-stat-label">متوسط الدقة</div></div>
           <div class="perf-stat"><div class="perf-stat-val">${bestWpm}</div><div class="perf-stat-label">أعلى سرعة</div></div>
           <div class="perf-stat"><div class="perf-stat-val">${Math.floor(totalTime/60)}m</div><div class="perf-stat-label">وقت التدريب</div></div>
+          <div class="perf-stat"><div class="perf-stat-val">🔥 ${streak.current}</div><div class="perf-stat-label">سلسلة أيام</div></div>
+          <div class="perf-stat"><div class="perf-stat-val">${streak.best}</div><div class="perf-stat-label">أطول سلسلة</div></div>
         `;
       }
     }
+
+    renderProgressChart(attempts);
 
     // Aggregate error chars + words across all attempts
     const charAgg = {};
@@ -2137,6 +2189,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function saveAttempt(wpm, acc, time) {
     const attempt = {
       username: currentUser ? currentUser.username : "guest",
+      ts: Date.now(),
       date: new Date().toLocaleString("ar-EG", {
         year: 'numeric', month: 'short', day: 'numeric',
         hour: '2-digit', minute: '2-digit'

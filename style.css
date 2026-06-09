@@ -2351,6 +2351,37 @@ body.zen-mode .settings-panel {
 }
 
 /* ====================================================================
+   PROGRESS CHART (performance tab)
+   ==================================================================== */
+.perf-chart .progress-chart {
+  width: 100%;
+  height: 160px;
+  display: block;
+}
+
+.chart-legend {
+  display: flex;
+  gap: 1.25rem;
+  justify-content: center;
+  margin-top: 0.5rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.chart-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.chart-legend i {
+  width: 14px;
+  height: 3px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+/* ====================================================================
    TOAST NOTIFICATIONS
    ==================================================================== */
 #toast-container {
