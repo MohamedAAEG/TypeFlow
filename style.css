@@ -2151,8 +2151,20 @@ body.dark-mode .inline-editor-overlay {
 
 body.zen-mode header,
 body.zen-mode .history-section,
-body.zen-mode footer,
-body.zen-mode .practice-context-bar {
+body.zen-mode footer {
+  display: none !important;
+}
+
+/* In zen the context bar collapses, but its children stay in flow so the
+   floating settings button (position:fixed, below) can escape its parent and
+   remain usable — otherwise the settings panel can't be closed inside zen. */
+body.zen-mode .practice-context-bar,
+body.zen-mode .practice-context-bar .context-controls {
+  display: contents;
+}
+body.zen-mode .practice-context-bar .context-info,
+body.zen-mode .practice-context-bar .paragraph-counter,
+body.zen-mode .practice-context-bar .rep-counter {
   display: none !important;
 }
 
