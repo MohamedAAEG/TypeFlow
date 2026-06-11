@@ -309,8 +309,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const audioObjectUrls = new Map();    // "accent:word" -> object URL (in-memory)
   const dbWordTranslations = new Map(); // "lang:word"   -> translation
   let _audioIdb = null;
-  let currentPuterAudio = null;         // the audio element currently playing (Puter)
-  let puterReady = false;               // becomes true after a successful Puter call
   let isCompleted = false;
   let startTime = null;
   let timerInterval = null;
@@ -1391,7 +1389,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Live assist (pronunciation + translation)
     $("word-assist-speak")?.addEventListener("click", () => {
-      if (currentAssistWord) speakWord(currentAssistWord, true);
+      if (currentAssistWord) speakWord(currentAssistWord);
     });
     $("assist-accent")?.addEventListener("change", (e) => {
       if (!profile) return;
@@ -2242,41 +2240,13 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (e) {}
   }
 
-  function puterAvailable() {
-    return window.puter && puter.ai && typeof puter.ai.txt2speech === "function";
-  }
-
-  // Speak via Puter with a timeout so it never hangs (e.g. while it waits for
-  // the one-time Puter sign-in). Falls back to the browser voice.
-  function puterSpeak(word) {
-    let done = false;
-    const fallback = () => { if (!done) { done = true; speakWordTTS(word); } };
-    const to = setTimeout(fallback, 2500);
-    try {
-      puter.ai.txt2speech(word).then((audio) => {
-        if (done) return;
-        done = true; clearTimeout(to);
-        puterReady = true; // it works → auto-speak can use Puter from now on
-        try {
-          if (currentPuterAudio) { try { currentPuterAudio.pause(); } catch (e) {} }
-          currentPuterAudio = audio;
-          audio.play();
-        } catch (e) { speakWordTTS(word); }
-      }).catch(() => { clearTimeout(to); fallback(); });
-    } catch (e) { clearTimeout(to); fallback(); }
-  }
-
-  // Voice priority: pre-cached blob → Puter → browser voice.
-  // Puter is used automatically only once it's "ready" (after a successful call,
-  // typically triggered the first time by the 🔊 button — a user gesture that
-  // can complete the Puter sign-in). userInitiated=true forces a Puter attempt.
-  function speakWord(word, userInitiated) {
+  // Prefer the cached human (Polly) recording; fall back to the browser voice.
+  function speakWord(word) {
     if (!word) return;
     if (assistBackendEnabled()) {
       const url = audioObjectUrls.get(accentKey() + ":" + word.toLowerCase());
       if (url) { try { new Audio(url).play(); return; } catch (e) {} }
     }
-    if (puterAvailable() && (puterReady || userInitiated)) { puterSpeak(word); return; }
     speakWordTTS(word);
   }
 
