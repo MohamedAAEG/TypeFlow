@@ -538,11 +538,6 @@ document.addEventListener("DOMContentLoaded", () => {
     loadTtsVoices();
     if (window.speechSynthesis) speechSynthesis.onvoiceschanged = loadTtsVoices;
 
-    // puter.js loads async too — check for an existing session a few times
-    detectPuterSession();
-    setTimeout(detectPuterSession, 1500);
-    setTimeout(detectPuterSession, 5000);
-
     // Route v2.5:
     //   - no currentUser  → show landing
     //   - currentUser, no profile → show onboarding
@@ -2249,24 +2244,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function puterAvailable() {
     return window.puter && puter.ai && typeof puter.ai.txt2speech === "function";
-  }
-
-  // Returning visitors: if a Puter session already exists in this browser,
-  // enable the better voice immediately (no button press needed). Silent —
-  // never opens a sign-in popup.
-  function detectPuterSession() {
-    try {
-      if (!window.puter || !puter.auth || typeof puter.auth.isSignedIn !== "function") return;
-      const r = puter.auth.isSignedIn();
-      if (r === true) { puterReady = true; return; }
-      if (r && typeof r.then === "function") r.then(ok => { if (ok) puterReady = true; }).catch(() => {});
-    } catch (e) { /* stay on the browser voice */ }
-  }
-  // Already signed in to Puter (from a previous visit)? Then no 🔊 click is
-  // needed — auto-speak can use the better voice right away.
-  function puterSignedIn() {
-    try { return !!(window.puter && puter.auth && puter.auth.isSignedIn && puter.auth.isSignedIn()); }
-    catch (e) { return false; }
   }
 
   // Speak via Puter with a timeout so it never hangs (e.g. while it waits for
