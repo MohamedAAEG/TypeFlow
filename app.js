@@ -523,6 +523,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function initApp() {
     applyTheme(currentTheme);
+    applyAppearance();
     soundSel.value = (!isSoundEnabled) ? "none" : soundType;
     typingAudio.soundType = soundType;
     typingAudio.enabled = soundSel.value !== "none";
@@ -1089,6 +1090,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (idle) idle.value = String(profile.idlePauseSec != null ? profile.idlePauseSec : 5);
     const dr = $("default-repetitions");
     if (dr) dr.value = String(profile.repetitions || 1);
+    syncAppearanceControls();
   }
 
   function bindDisplayTab() {
@@ -1424,6 +1426,22 @@ document.addEventListener("DOMContentLoaded", () => {
       e.target.value = "";
     });
 
+    // Appearance controls
+    $("appearance-accent")?.addEventListener("input", (e) => setAppearance({ accent: e.target.value }));
+    $("appearance-bg")?.addEventListener("input", (e) => setAppearance({ bg: e.target.value }));
+    $("appearance-font")?.addEventListener("change", (e) => setAppearance({ font: e.target.value || null }));
+    $("appearance-size")?.addEventListener("input", (e) => {
+      const v = parseInt(e.target.value, 10) || 100;
+      const sv = $("appearance-size-val"); if (sv) sv.textContent = v + "%";
+      setAppearance({ size: v });
+    });
+    $("appearance-reset")?.addEventListener("click", () => {
+      localStorage.removeItem("typeflow_appearance");
+      applyAppearance();
+      syncAppearanceControls();
+      showToast("تمت إعادة المظهر الافتراضي", "info");
+    });
+
     // Learning list tab actions
     $("learning-clear")?.addEventListener("click", clearLearningList);
     $("learning-translate-missing")?.addEventListener("click", translateMissingLearning);
@@ -1564,6 +1582,99 @@ document.addEventListener("DOMContentLoaded", () => {
   function toggleTheme() {
     currentTheme = currentTheme === "dark" ? "light" : "dark";
     applyTheme(currentTheme);
+  }
+
+  // ============================ APPEARANCE (colors / font / size) ============================
+  // Stored globally (like the theme) in typeflow_appearance:
+  //   { accent, bg, font, size }  — every field optional; absent = default.
+  // Custom vars are set inline on <body> so they win over body.dark-mode tokens.
+  function getAppearance() {
+    try { return JSON.parse(localStorage.getItem("typeflow_appearance") || "{}"); } catch { return {}; }
+  }
+  function setAppearance(patch) {
+    const a = { ...getAppearance(), ...patch };
+    Object.keys(a).forEach(k => { if (a[k] == null || a[k] === "") delete a[k]; });
+    localStorage.setItem("typeflow_appearance", JSON.stringify(a));
+    applyAppearance();
+  }
+
+  function hexToRgb(hex) {
+    const m = /^#?([0-9a-f]{6})$/i.exec(hex || "");
+    if (!m) return null;
+    const n = parseInt(m[1], 16);
+    return [n >> 16 & 255, n >> 8 & 255, n & 255];
+  }
+  function rgbToHex(r, g, b) {
+    return "#" + [r, g, b].map(v => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, "0")).join("");
+  }
+  function mixHex(hex, target, amt) { // amt 0..1 toward target color
+    const a = hexToRgb(hex), b = hexToRgb(target);
+    if (!a || !b) return hex;
+    return rgbToHex(a[0] + (b[0] - a[0]) * amt, a[1] + (b[1] - a[1]) * amt, a[2] + (b[2] - a[2]) * amt);
+  }
+  function isLight(hex) {
+    const c = hexToRgb(hex);
+    if (!c) return false;
+    return (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]) / 255 > 0.45;
+  }
+
+  function applyAppearance() {
+    const a = getAppearance();
+    const s = document.body.style;
+    const clear = (...props) => props.forEach(p => s.removeProperty(p));
+
+    // ---- Accent ----
+    if (a.accent && hexToRgb(a.accent)) {
+      const [r, g, b] = hexToRgb(a.accent);
+      s.setProperty("--accent", a.accent);
+      s.setProperty("--accent-strong", a.accent);
+      s.setProperty("--accent-hover", mixHex(a.accent, "#000000", 0.15));
+      s.setProperty("--accent-soft", `rgba(${r}, ${g}, ${b}, 0.12)`);
+      s.setProperty("--accent-ring", `rgba(${r}, ${g}, ${b}, 0.35)`);
+      s.setProperty("--on-accent", isLight(a.accent) ? "#14161a" : "#ffffff");
+    } else {
+      clear("--accent", "--accent-strong", "--accent-hover", "--accent-soft", "--accent-ring", "--on-accent");
+    }
+
+    // ---- Background (text colors derived from luminance so it stays readable) ----
+    if (a.bg && hexToRgb(a.bg)) {
+      const light = isLight(a.bg);
+      const ink = light ? "#14161a" : "#eceef1";
+      s.setProperty("--page-bg", a.bg);
+      s.setProperty("--bg-color", mixHex(a.bg, "#ffffff", light ? 0.6 : 0.05));
+      s.setProperty("--surface-2", mixHex(a.bg, light ? "#000000" : "#ffffff", 0.04));
+      s.setProperty("--hover-bg",  mixHex(a.bg, light ? "#000000" : "#ffffff", 0.05));
+      s.setProperty("--active-bg", mixHex(a.bg, light ? "#000000" : "#ffffff", 0.09));
+      s.setProperty("--text-color", ink);
+      s.setProperty("--text-muted", light ? "#5b6470" : "#9aa3af");
+      s.setProperty("--text-dim",   light ? "#9aa3af" : "#5b6470");
+      s.setProperty("--border-color",  mixHex(a.bg, ink, 0.12));
+      s.setProperty("--border-strong", mixHex(a.bg, ink, 0.22));
+    } else {
+      clear("--page-bg", "--bg-color", "--surface-2", "--hover-bg", "--active-bg",
+            "--text-color", "--text-muted", "--text-dim", "--border-color", "--border-strong");
+    }
+
+    // ---- Font family (whole UI) ----
+    if (a.font) {
+      s.setProperty("--font-sans", a.font);
+      s.setProperty("--font-mono", a.font);
+      s.setProperty("font-family", a.font);
+    } else {
+      clear("--font-sans", "--font-mono", "font-family");
+    }
+
+    // ---- Font size (rem base → scales the whole UI) ----
+    document.documentElement.style.fontSize = (a.size && a.size !== 100) ? a.size + "%" : "";
+  }
+
+  function syncAppearanceControls() {
+    const a = getAppearance();
+    const acc = $("appearance-accent"); if (acc) acc.value = a.accent || "#4d5bd6";
+    const bg  = $("appearance-bg");     if (bg)  bg.value  = a.bg || (currentTheme === "dark" ? "#0c0e11" : "#f6f7f9");
+    const f   = $("appearance-font");   if (f)   f.value   = a.font || "";
+    const sz  = $("appearance-size");   if (sz)  sz.value  = a.size || 100;
+    const sv  = $("appearance-size-val"); if (sv) sv.textContent = (a.size || 100) + "%";
   }
 
   function toggleFocus() {

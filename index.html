@@ -788,6 +788,50 @@
             </div>
           </div>
         </div>
+
+        <div class="profile-card">
+          <h3 class="profile-card-title">🖌️ المظهر / Appearance</h3>
+
+          <div class="appearance-row">
+            <span class="settings-label">🎨 لون التمييز (الأزرار والتركيز)</span>
+            <input type="color" id="appearance-accent" class="appearance-color" value="#4d5bd6">
+          </div>
+
+          <div class="appearance-row">
+            <span class="settings-label">🌆 لون الخلفية</span>
+            <input type="color" id="appearance-bg" class="appearance-color" value="#0c0e11">
+          </div>
+
+          <div class="appearance-row">
+            <span class="settings-label">🔤 الخط</span>
+            <select id="appearance-font" class="select-minimal" style="min-width: 180px;">
+              <option value="">الافتراضي</option>
+              <option value="'Cairo', sans-serif">Cairo — القاهرة</option>
+              <option value="'Tajawal', sans-serif">Tajawal — تجوال</option>
+              <option value="'Inter', sans-serif">Inter</option>
+              <option value="'Roboto Mono', monospace">Roboto Mono</option>
+              <option value="'Segoe UI', sans-serif">Segoe UI</option>
+              <option value="Arial, sans-serif">Arial</option>
+              <option value="Georgia, serif">Georgia</option>
+            </select>
+          </div>
+
+          <div class="appearance-row">
+            <span class="settings-label">📏 حجم الخط</span>
+            <div style="display: flex; align-items: center; gap: 0.6rem;">
+              <input type="range" id="appearance-size" min="80" max="140" step="5" value="100" style="width: 160px;">
+              <span id="appearance-size-val" style="font-family: var(--font-mono); font-size: 0.85rem; min-width: 44px;">100%</span>
+            </div>
+          </div>
+
+          <p class="focus-instruction" style="margin-top: 0.5rem;">
+            لون النص يتعدّل تلقائياً حسب فتاحة الخلفية للحفاظ على القراءة.
+          </p>
+
+          <button type="button" id="appearance-reset" class="btn-secondary btn-sm" style="margin-top: 0.75rem;">
+            ↩️ إعادة المظهر الافتراضي
+          </button>
+        </div>
       </div>
 
       <!-- ▶ Panel: Performance Analysis (v2.6) -->

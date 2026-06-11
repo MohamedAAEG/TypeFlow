@@ -2490,6 +2490,31 @@ body.zen-mode .para-progress-container {
 }
 
 /* ====================================================================
+   APPEARANCE SETTINGS (display tab)
+   ==================================================================== */
+.appearance-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.appearance-row:last-of-type { border-bottom: none; }
+
+.appearance-color {
+  width: 52px;
+  height: 32px;
+  padding: 2px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background-color: var(--bg-color);
+  cursor: pointer;
+}
+
+/* ====================================================================
    TOAST NOTIFICATIONS
    ==================================================================== */
 #toast-container {
