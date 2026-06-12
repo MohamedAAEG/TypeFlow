@@ -832,6 +832,92 @@
             ↩️ إعادة المظهر الافتراضي
           </button>
         </div>
+
+        <div class="profile-card">
+          <h3 class="profile-card-title">⌨️ مظهر صفحة التدريب</h3>
+
+          <div class="appearance-row" style="border-bottom: none; padding-bottom: 0;">
+            <span class="settings-label">✨ توليفات جاهزة</span>
+          </div>
+          <div class="preset-chips" id="practice-presets">
+            <button type="button" class="preset-chip" data-preset="default">الافتراضي</button>
+            <button type="button" class="preset-chip" data-preset="paper">📜 ورقي</button>
+            <button type="button" class="preset-chip" data-preset="matrix">🟩 ماتريكس</button>
+            <button type="button" class="preset-chip" data-preset="ocean">🌊 محيط</button>
+            <button type="button" class="preset-chip" data-preset="sunset">🌅 غروب</button>
+            <button type="button" class="preset-chip" data-preset="violet">🔮 بنفسجي</button>
+          </div>
+
+          <div class="appearance-row" style="margin-top: 0.75rem;">
+            <span class="settings-label">🔤 خط نص التدريب</span>
+            <select id="practice-font" class="select-minimal" style="min-width: 180px;">
+              <option value="">الافتراضي (Roboto Mono)</option>
+              <option value="'Cairo', sans-serif">Cairo — القاهرة</option>
+              <option value="'Tajawal', sans-serif">Tajawal — تجوال</option>
+              <option value="'Inter', sans-serif">Inter</option>
+              <option value="'Segoe UI', sans-serif">Segoe UI</option>
+              <option value="Consolas, monospace">Consolas</option>
+              <option value="'Courier New', monospace">Courier New</option>
+              <option value="Georgia, serif">Georgia</option>
+            </select>
+          </div>
+
+          <div class="appearance-row">
+            <span class="settings-label">📏 حجم نص التدريب</span>
+            <div style="display: flex; align-items: center; gap: 0.6rem;">
+              <input type="range" id="practice-size" min="70" max="160" step="5" value="100" style="width: 160px;">
+              <span id="practice-size-val" style="font-family: var(--font-mono); font-size: 0.85rem; min-width: 44px;">100%</span>
+            </div>
+          </div>
+
+          <div class="appearance-row">
+            <span class="settings-label">🌆 خلفية منطقة التدريب</span>
+            <input type="color" id="practice-bg" class="appearance-color" value="#15181d">
+          </div>
+
+          <div class="appearance-row">
+            <span class="settings-label">✍️ لون النص المكتوب</span>
+            <input type="color" id="practice-typed" class="appearance-color" value="#eceef1">
+          </div>
+
+          <div class="appearance-row">
+            <span class="settings-label">⬜ لون النص المتبقي</span>
+            <input type="color" id="practice-untyped" class="appearance-color" value="#5b6470">
+          </div>
+
+          <div class="appearance-row">
+            <span class="settings-label">🔠 لون الحرف الحالي (تحت المؤشر)</span>
+            <input type="color" id="practice-active" class="appearance-color" value="#eceef1">
+          </div>
+
+          <div class="appearance-row">
+            <span class="settings-label">▍لون المؤشر</span>
+            <input type="color" id="practice-cursor" class="appearance-color" value="#8b97ff">
+          </div>
+
+          <div class="appearance-row">
+            <span class="settings-label">🌐 خط ترجمة الجملة (أسفل)</span>
+            <select id="practice-tr-font" class="select-minimal" style="min-width: 180px;">
+              <option value="">الافتراضي (Cairo)</option>
+              <option value="'Tajawal', sans-serif">Tajawal — تجوال</option>
+              <option value="'Amiri', serif">Amiri — أميري</option>
+              <option value="'Segoe UI', sans-serif">Segoe UI</option>
+              <option value="Arial, sans-serif">Arial</option>
+            </select>
+          </div>
+
+          <div class="appearance-row">
+            <span class="settings-label">📐 حجم ترجمة الجملة</span>
+            <div style="display: flex; align-items: center; gap: 0.6rem;">
+              <input type="range" id="practice-tr-size" min="70" max="160" step="5" value="100" style="width: 160px;">
+              <span id="practice-tr-size-val" style="font-family: var(--font-mono); font-size: 0.85rem; min-width: 44px;">100%</span>
+            </div>
+          </div>
+
+          <button type="button" id="practice-appearance-reset" class="btn-secondary btn-sm" style="margin-top: 0.75rem;">
+            ↩️ إعادة مظهر التدريب الافتراضي
+          </button>
+        </div>
       </div>
 
       <!-- ▶ Panel: Performance Analysis (v2.6) -->

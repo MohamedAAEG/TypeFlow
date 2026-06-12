@@ -1091,6 +1091,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const dr = $("default-repetitions");
     if (dr) dr.value = String(profile.repetitions || 1);
     syncAppearanceControls();
+    syncPracticeControls();
   }
 
   function bindDisplayTab() {
@@ -1439,7 +1440,35 @@ document.addEventListener("DOMContentLoaded", () => {
       localStorage.removeItem("typeflow_appearance");
       applyAppearance();
       syncAppearanceControls();
+      syncPracticeControls();
       showToast("تمت إعادة المظهر الافتراضي", "info");
+    });
+
+    // Practice-area appearance controls
+    $("practice-presets")?.addEventListener("click", (e) => {
+      const chip = e.target.closest("[data-preset]");
+      if (chip) applyPracticePreset(chip.dataset.preset);
+    });
+    $("practice-font")?.addEventListener("change", (e) => setPracticeAppearance({ font: e.target.value || null }));
+    $("practice-size")?.addEventListener("input", (e) => {
+      const v = parseInt(e.target.value, 10) || 100;
+      const sv = $("practice-size-val"); if (sv) sv.textContent = v + "%";
+      setPracticeAppearance({ size: v });
+    });
+    $("practice-bg")?.addEventListener("input", (e) => setPracticeAppearance({ bg: e.target.value }));
+    $("practice-typed")?.addEventListener("input", (e) => setPracticeAppearance({ typed: e.target.value }));
+    $("practice-untyped")?.addEventListener("input", (e) => setPracticeAppearance({ untyped: e.target.value }));
+    $("practice-active")?.addEventListener("input", (e) => setPracticeAppearance({ active: e.target.value }));
+    $("practice-cursor")?.addEventListener("input", (e) => setPracticeAppearance({ cursor: e.target.value }));
+    $("practice-tr-font")?.addEventListener("change", (e) => setPracticeAppearance({ trFont: e.target.value || null }));
+    $("practice-tr-size")?.addEventListener("input", (e) => {
+      const v = parseInt(e.target.value, 10) || 100;
+      const tv = $("practice-tr-size-val"); if (tv) tv.textContent = v + "%";
+      setPracticeAppearance({ trSize: v });
+    });
+    $("practice-appearance-reset")?.addEventListener("click", () => {
+      applyPracticePreset("default");
+      showToast("تمت إعادة مظهر التدريب الافتراضي", "info");
     });
 
     // Learning list tab actions
@@ -1666,6 +1695,65 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // ---- Font size (rem base → scales the whole UI) ----
     document.documentElement.style.fontSize = (a.size && a.size !== 100) ? a.size + "%" : "";
+
+    // ---- Practice-area specific overrides ----
+    const p = a.practice || {};
+    const setOrClear = (prop, val) => val ? s.setProperty(prop, val) : s.removeProperty(prop);
+    setOrClear("--practice-font", p.font);
+    setOrClear("--practice-scale", p.size && p.size !== 100 ? String(p.size / 100) : null);
+    setOrClear("--practice-bg", p.bg && hexToRgb(p.bg) ? p.bg : null);
+    setOrClear("--practice-typed", p.typed && hexToRgb(p.typed) ? p.typed : null);
+    setOrClear("--practice-untyped", p.untyped && hexToRgb(p.untyped) ? p.untyped : null);
+    setOrClear("--practice-active", p.active && hexToRgb(p.active) ? p.active : null);
+    setOrClear("--practice-cursor", p.cursor && hexToRgb(p.cursor) ? p.cursor : null);
+    setOrClear("--practice-tr-font", p.trFont);
+    setOrClear("--practice-tr-scale", p.trSize && p.trSize !== 100 ? String(p.trSize / 100) : null);
+  }
+
+  function setPracticeAppearance(patch) {
+    const a = getAppearance();
+    const p = { ...(a.practice || {}), ...patch };
+    Object.keys(p).forEach(k => { if (p[k] == null || p[k] === "") delete p[k]; });
+    if (Object.keys(p).length) a.practice = p; else delete a.practice;
+    localStorage.setItem("typeflow_appearance", JSON.stringify(a));
+    applyAppearance();
+  }
+
+  // Ready-made practice themes (cohesive combos for bg/typed/untyped/cursor).
+  const PRACTICE_PRESETS = {
+    default: null, // clears the practice overrides
+    paper:   { bg: "#f5efe0", typed: "#3d3526", untyped: "#b3a98e", active: "#1f1a10", cursor: "#8a6d3b" },
+    matrix:  { bg: "#0a0f0a", typed: "#33ff66", untyped: "#1d5c2e", active: "#aaffcc", cursor: "#33ff66" },
+    ocean:   { bg: "#0a1622", typed: "#9fd6ff", untyped: "#33536b", active: "#e0f2ff", cursor: "#38bdf8" },
+    sunset:  { bg: "#1c1210", typed: "#ffc899", untyped: "#6b4a38", active: "#ffe7d1", cursor: "#fb923c" },
+    violet:  { bg: "#15101f", typed: "#d6c6ff", untyped: "#4d3f6b", active: "#f1e9ff", cursor: "#a78bfa" }
+  };
+
+  function applyPracticePreset(name) {
+    const a = getAppearance();
+    const preset = PRACTICE_PRESETS[name];
+    if (!preset) delete a.practice;
+    else a.practice = { ...(a.practice || {}), ...preset };
+    localStorage.setItem("typeflow_appearance", JSON.stringify(a));
+    applyAppearance();
+    syncPracticeControls();
+  }
+
+  function syncPracticeControls() {
+    const p = getAppearance().practice || {};
+    const dark = currentTheme === "dark";
+    const set = (id, val) => { const el = $(id); if (el) el.value = val; };
+    set("practice-font", p.font || "");
+    set("practice-size", p.size || 100);
+    const sv = $("practice-size-val"); if (sv) sv.textContent = (p.size || 100) + "%";
+    set("practice-bg", p.bg || (dark ? "#15181d" : "#ffffff"));
+    set("practice-typed", p.typed || (dark ? "#eceef1" : "#14161a"));
+    set("practice-untyped", p.untyped || (dark ? "#5b6470" : "#9aa3af"));
+    set("practice-active", p.active || (dark ? "#eceef1" : "#14161a"));
+    set("practice-cursor", p.cursor || (dark ? "#8b97ff" : "#4d5bd6"));
+    set("practice-tr-font", p.trFont || "");
+    set("practice-tr-size", p.trSize || 100);
+    const tv = $("practice-tr-size-val"); if (tv) tv.textContent = (p.trSize || 100) + "%";
   }
 
   function syncAppearanceControls() {
