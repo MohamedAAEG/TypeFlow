@@ -1,7 +1,7 @@
 /* TypeFlow service worker — offline support.
    Network-first with cache fallback so updates are always picked up when
    online, and the app still works offline. */
-const CACHE = "typeflow-v1";
+const CACHE = "typeflow-v2";
 const CORE = [
   "./",
   "index.html",
@@ -9,6 +9,7 @@ const CORE = [
   "style.css",
   "typing-data.js",
   "english-data.js",
+  "words-db.js",
   "audio.js",
   "manifest.json",
   "icon.svg"

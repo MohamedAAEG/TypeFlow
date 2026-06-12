@@ -301,14 +301,10 @@ document.addEventListener("DOMContentLoaded", () => {
   let liveAssistOn = false;
   let ttsVoices = [];
   let currentAssistWord = "";
-  // Pronunciation backend config — fill in to enable (see BACKEND_SETUP.md).
-  // While these stay as placeholders the app uses the browser voice + free
-  // translation, so everything keeps working.
-  const SUPA_URL  = "<<SUPABASE_URL>>";
-  const SUPA_ANON = "<<SUPABASE_ANON_KEY>>";
-  const audioObjectUrls = new Map();    // "accent:word" -> object URL (in-memory)
-  const dbWordTranslations = new Map(); // "lang:word"   -> translation
-  let _audioIdb = null;
+  // Local words database (words-db.js in the project folder): curated
+  // per-word translations + optional audio file paths. Anything missing falls
+  // back to the free contextual translation / browser voice.
+  const audioPreloaded = new Set(); // audio paths already preloaded this session
   let isCompleted = false;
   let startTime = null;
   let timerInterval = null;
@@ -820,6 +816,12 @@ document.addEventListener("DOMContentLoaded", () => {
   // Shared translation helper (MyMemory). Auto-detects direction and caches results.
   function fetchTranslation(text, pair) {
     const p = pair || detectLangPair(text);
+    // Single English words: the curated local DB (words-db.js) wins.
+    const t = (text || "").trim();
+    if (p.indexOf("en|") === 0 && t && !/\s/.test(t)) {
+      const local = dbTranslation(t, p.split("|")[1]);
+      if (local) return Promise.resolve(local);
+    }
     const cacheKey = `${p}::${text}`;
     const cache = getTranslationCache();
     if (cache[cacheKey]) return Promise.resolve(cache[cacheKey]);
@@ -2439,86 +2441,41 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (e) {}
   }
 
-  // Prefer the cached human (Polly) recording; fall back to the browser voice.
+  // ---- Local words database (words-db.js) ----
+  function dbTranslation(word, lang) {
+    try {
+      return (typeof WORDS_DB !== "undefined" && WORDS_DB.translations[lang] || {})[word.toLowerCase()] || null;
+    } catch (e) { return null; }
+  }
+  function dbAudioPath(word) {
+    try {
+      return (typeof WORDS_DB !== "undefined" && WORDS_DB.audio || {})[word.toLowerCase()] || null;
+    } catch (e) { return null; }
+  }
+
+  // Prefer a recorded audio file from the local DB; fall back to the browser voice.
   function speakWord(word) {
     if (!word) return;
-    if (assistBackendEnabled()) {
-      const url = audioObjectUrls.get(accentKey() + ":" + word.toLowerCase());
-      if (url) { try { new Audio(url).play(); return; } catch (e) {} }
+    const path = dbAudioPath(word);
+    if (path) {
+      try { new Audio(path).play(); return; } catch (e) {}
     }
     speakWordTTS(word);
   }
 
-  // ---- Pronunciation backend (Supabase + Amazon Polly) ----
-  function assistBackendEnabled() {
-    return SUPA_URL && SUPA_URL.indexOf("<<") === -1 && SUPA_ANON && SUPA_ANON.indexOf("<<") === -1;
-  }
-  function accentKey() { return (profile && profile.accent === "gb") ? "gb" : "us"; }
-
-  function audioIdbOpen() {
-    if (_audioIdb) return _audioIdb;
-    _audioIdb = new Promise((resolve) => {
-      try {
-        const req = indexedDB.open("typeflow-audio", 1);
-        req.onupgradeneeded = () => req.result.createObjectStore("audio");
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => resolve(null);
-      } catch (e) { resolve(null); }
+  // On paragraph load: preload any DB audio files for this paragraph's words
+  // so playback is instant when the word is reached.
+  function prefetchParagraphAssist() {
+    if (!liveAssistOn || !currentWordSpans.length) return;
+    [...new Set(currentWordSpans.map(s => s.word.toLowerCase()))].forEach(w => {
+      const p = dbAudioPath(w);
+      if (p && !audioPreloaded.has(p)) {
+        audioPreloaded.add(p);
+        const a = new Audio();
+        a.preload = "auto";
+        a.src = p;
+      }
     });
-    return _audioIdb;
-  }
-  async function audioIdbGet(key) {
-    const db = await audioIdbOpen(); if (!db) return null;
-    return new Promise((resolve) => {
-      try { const r = db.transaction("audio").objectStore("audio").get(key); r.onsuccess = () => resolve(r.result || null); r.onerror = () => resolve(null); }
-      catch (e) { resolve(null); }
-    });
-  }
-  async function audioIdbSet(key, blob) {
-    const db = await audioIdbOpen(); if (!db) return;
-    try { db.transaction("audio", "readwrite").objectStore("audio").put(blob, key); } catch (e) {}
-  }
-
-  function base64ToBlob(b64, type) {
-    const bin = atob(b64);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    return new Blob([bytes], { type: type || "audio/mpeg" });
-  }
-
-  // On paragraph load: make sure this paragraph's words are cached as audio.
-  // Words already cached (memory or IndexedDB) are skipped; only the misses are
-  // generated by the Edge Function (Google TTS) and then cached per-device.
-  async function prefetchParagraphAssist() {
-    if (!assistBackendEnabled() || !liveAssistOn || !currentWordSpans.length) return;
-    const accent = accentKey();
-    const words = [...new Set(currentWordSpans.map(s => s.word.toLowerCase()))];
-    const misses = [];
-    for (const w of words) {
-      const key = accent + ":" + w;
-      if (audioObjectUrls.has(key)) continue;
-      const blob = await audioIdbGet(key);
-      if (blob) audioObjectUrls.set(key, URL.createObjectURL(blob));
-      else misses.push(w);
-    }
-    if (misses.length === 0) return;
-    try {
-      const res = await fetch(`${SUPA_URL}/functions/v1/tts`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${SUPA_ANON}`, "apikey": SUPA_ANON },
-        body: JSON.stringify({ words: misses, accent }),
-      });
-      if (!res.ok) return;
-      const data = await res.json();
-      (data.results || []).forEach(r => {
-        if (!r.audioBase64) return;
-        const key = accent + ":" + r.word.toLowerCase();
-        if (audioObjectUrls.has(key)) return;
-        const blob = base64ToBlob(r.audioBase64);
-        audioIdbSet(key, blob);
-        audioObjectUrls.set(key, URL.createObjectURL(blob));
-      });
-    } catch (e) { /* stay on the browser-voice fallback */ }
   }
 
   function computeWordSpans(text) {
@@ -2557,7 +2514,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const theWord = spans[idx].word;
     currentAssistWord = theWord;
     const lang = translateTarget();
-    const dbTr = assistBackendEnabled() ? dbWordTranslations.get(lang + ":" + theWord.toLowerCase()) : null;
+    const dbTr = dbTranslation(theWord, lang);
 
     if (wEl) {
       if (dbTr) {
