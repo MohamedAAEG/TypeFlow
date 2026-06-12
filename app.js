@@ -1413,6 +1413,17 @@ document.addEventListener("DOMContentLoaded", () => {
       localStorage.setItem(STORAGE.profile, JSON.stringify(profile));
       refreshAssistVisibility();
     });
+    $("assist-rate")?.addEventListener("input", (e) => {
+      if (!profile) return;
+      const v = parseInt(e.target.value, 10) || 95;
+      profile.speechRate = v / 100;
+      localStorage.setItem(STORAGE.profile, JSON.stringify(profile));
+      const rv = $("assist-rate-val"); if (rv) rv.textContent = v + "%";
+    });
+    // Preview the new speed when the user releases the slider
+    $("assist-rate")?.addEventListener("change", () => {
+      if (currentAssistWord) speakWord(currentAssistWord);
+    });
     $("assist-translations")?.addEventListener("change", (e) => {
       if (!profile) return;
       profile.showTranslations = e.target.checked;
@@ -2436,7 +2447,7 @@ document.addEventListener("DOMContentLoaded", () => {
       u.lang = accentLang();
       const v = pickVoice(u.lang);
       if (v) u.voice = v;
-      u.rate = 0.95;
+      u.rate = (profile && profile.speechRate) || 0.95;
       speechSynthesis.speak(u);
     } catch (e) {}
   }
@@ -2587,6 +2598,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const l = $("assist-lang");         if (l) l.value = translateTarget();
     const s = $("assist-speak");        if (s) s.checked = speakOn();
     const t = $("assist-translations"); if (t) t.checked = transOn();
+    const ratePct = Math.round(((profile && profile.speechRate) || 0.95) * 100);
+    const r = $("assist-rate");         if (r) r.value = ratePct;
+    const rv = $("assist-rate-val");    if (rv) rv.textContent = ratePct + "%";
   }
 
   function updateTimer() {

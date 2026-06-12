@@ -315,6 +315,13 @@
               <input type="checkbox" id="assist-speak" checked>
               <span>نطق الكلمة تلقائياً</span>
             </label>
+            <label class="assist-row">
+              <span>🐢 سرعة النطق</span>
+              <span style="display: flex; align-items: center; gap: 0.5rem;">
+                <input type="range" id="assist-rate" min="50" max="120" step="5" value="95" style="width: 130px;">
+                <span id="assist-rate-val" style="font-family: var(--font-mono); font-size: 0.8rem; min-width: 38px;">95%</span>
+              </span>
+            </label>
             <label class="assist-row assist-toggle">
               <input type="checkbox" id="assist-translations" checked>
               <span>عرض الترجمة (الكلمة والجملة)</span>
