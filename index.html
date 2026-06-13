@@ -90,6 +90,9 @@
             <svg class="icon icon-sm"><use href="#i-shield"/></svg> <span id="admin-link-text">لوحة المدير / Admin</span>
           </button>
         </div>
+        <button id="grammar-link" class="btn-secondary btn-sm" title="تحديات القواعد / Grammar Quests">
+          <svg class="icon icon-sm"><use href="#i-book"/></svg> <span class="hide-mobile">القواعد</span>
+        </button>
         <button id="restart-onboarding-btn" class="icon-btn" title="إعادة تخصيص الرحلة / Restart onboarding" aria-label="إعادة تخصيص الرحلة" style="display: none;">
           <svg class="icon"><use href="#i-rotate-ccw"/></svg>
         </button>
@@ -1095,6 +1098,148 @@
       </div>
     </section>
 
+    <!-- ============ Grammar Quests — تحديات القواعد ============ -->
+    <section class="grammar-section" id="grammar-section" style="display: none;">
+
+      <div class="grammar-header">
+        <h2 style="font-size: 1.5rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem;">
+          🎮 تحديات القواعد / Grammar Quests
+        </h2>
+        <button id="grammar-back-btn" class="btn-primary">
+          <svg class="icon icon-sm"><use href="#i-chevron-start"/></svg> عودة للتدريب
+        </button>
+      </div>
+
+      <!-- ===== شاشة اختيار التحدّي (Quest List) ===== -->
+      <div class="gq-list-screen" id="gq-list-screen">
+        <p class="section-title">اختر زمناً لتبدأ رحلته في 3 مستويات</p>
+        <div class="tracks-grid gq-quests-grid" id="gq-quests-grid">
+          <!-- بطاقات التحديات يولّدها app.js -->
+        </div>
+      </div>
+
+      <!-- ===== رحلة التحدّي (تظهر بعد اختيار درس) ===== -->
+      <div class="gq-journey" id="gq-journey" style="display: none;">
+
+        <!-- شريط التقدّم (Stepper): 1/3 → 2/3 → 3/3 -->
+        <div class="gq-progress" id="gq-progress" role="group" aria-label="تقدّم التحدّي">
+          <div class="gq-progress-track">
+            <div class="gq-progress-fill" id="gq-progress-fill"></div>
+          </div>
+          <ol class="gq-steps">
+            <li class="gq-step is-active" data-step="1">
+              <span class="gq-step-dot">1</span>
+              <span class="gq-step-label">الشرح</span>
+            </li>
+            <li class="gq-step" data-step="2">
+              <span class="gq-step-dot">2</span>
+              <span class="gq-step-label">التدريب</span>
+            </li>
+            <li class="gq-step" data-step="3">
+              <span class="gq-step-dot">3</span>
+              <span class="gq-step-label">المعركة</span>
+            </li>
+          </ol>
+          <span class="gq-progress-text" id="gq-progress-text">المستوى 1 من 3</span>
+        </div>
+
+        <!-- ===== المستوى 1: الشرح (The Concept) ===== -->
+        <div class="gq-level gq-level-concept is-active" id="gq-level-1">
+          <div class="gq-concept-head">
+            <span class="gq-concept-icon" id="gq-concept-icon">⏱️</span>
+            <div>
+              <h3 class="gq-concept-title" id="gq-concept-title" dir="ltr">Present Simple</h3>
+              <p class="gq-concept-tagline" id="gq-concept-tagline"></p>
+            </div>
+          </div>
+
+          <div class="gq-formula-grid" id="gq-formula-grid"><!-- يولّدها JS --></div>
+          <ul class="gq-rules" id="gq-rules"><!-- يولّدها JS --></ul>
+          <div class="gq-signals" id="gq-signals"><!-- يولّدها JS --></div>
+          <p class="gq-tip" id="gq-tip"></p>
+
+          <div class="action-buttons">
+            <button class="btn-primary btn-lg" id="gq-start-challenge">
+              <svg class="icon icon-sm"><use href="#i-rocket"/></svg> ابدأ التحدي
+            </button>
+          </div>
+        </div>
+
+        <!-- ===== المستوى 2: الذاكرة العضلية (Typing) ===== -->
+        <div class="gq-level gq-level-typing" id="gq-level-2" style="display: none;">
+          <div class="gq-level-head">
+            <span class="section-title">⌨️ الذاكرة العضلية</span>
+            <span class="gq-counter" id="gq-typing-counter">جملة 1 / 10</span>
+          </div>
+
+          <!-- التعليل: نص صغير فوق الجملة يشرح "لماذا" حسب قاعدة المستوى 1 -->
+          <div class="gq-rationale" id="gq-typing-rationale"></div>
+
+          <!-- نفس بنية محرك الكتابة في التطبيق (بمعرّفات خاصة بالقسم) -->
+          <main class="typing-workbench gq-workbench" id="gq-typing-workbench" tabindex="0" aria-label="منطقة كتابة التحدّي">
+            <input type="text" id="gq-typing-input" class="typing-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" dir="ltr">
+            <div class="typing-text-container" id="gq-typing-text" dir="ltr"><!-- حروف يحقنها JS --></div>
+          </main>
+
+          <div class="progress-container gq-typing-progress">
+            <div class="progress-bar" id="gq-typing-progress-bar"></div>
+          </div>
+        </div>
+
+        <!-- ===== المستوى 3: معركة النهاية (Quiz) ===== -->
+        <div class="gq-level gq-level-quiz" id="gq-level-3" style="display: none;">
+          <div class="gq-level-head">
+            <span class="section-title">⚔️ معركة النهاية</span>
+            <span class="gq-counter" id="gq-quiz-counter">سؤال 1 / 6</span>
+          </div>
+
+          <div class="gq-quiz-card" id="gq-quiz-card">
+            <p class="gq-quiz-prompt" id="gq-quiz-prompt" dir="ltr"></p>
+            <div class="gq-choices" id="gq-quiz-choices"><!-- يولّدها JS حسب النوع --></div>
+            <div class="action-buttons" id="gq-quiz-submit-row">
+              <button class="btn-primary" id="gq-quiz-submit">تحقّق</button>
+            </div>
+          </div>
+
+          <!-- التغذية الراجعة الإلزامية (نجاح / خطأ) -->
+          <div class="gq-feedback" id="gq-feedback" style="display: none;">
+            <div class="gq-feedback-body">
+              <span class="gq-feedback-icon" id="gq-feedback-icon"></span>
+              <div>
+                <p class="gq-feedback-title" id="gq-feedback-title"></p>
+                <p class="gq-feedback-text" id="gq-feedback-text"></p>
+              </div>
+            </div>
+            <div class="gq-feedback-actions">
+              <button class="btn-primary" id="gq-next-q">السؤال التالي ›</button>
+              <button class="btn-secondary" id="gq-retry-q">
+                <svg class="icon icon-sm"><use href="#i-rotate-cw"/></svg> حاول مرة أخرى
+              </button>
+              <button class="btn-secondary" id="gq-review-concept">
+                <svg class="icon icon-sm"><use href="#i-book"/></svg> العودة لقراءة الشرح
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== شاشة الإكمال ===== -->
+        <div class="gq-level gq-complete" id="gq-complete" style="display: none;">
+          <div class="summary-header">
+            <span class="gq-complete-emoji">🎉</span>
+            <h3 class="summary-title">أكملت التحدّي!</h3>
+            <p class="summary-subtitle" id="gq-complete-sub"></p>
+          </div>
+          <div class="action-buttons">
+            <button class="btn-secondary" id="gq-replay">
+              <svg class="icon icon-sm"><use href="#i-rotate-ccw"/></svg> إعادة التحدّي
+            </button>
+            <button class="btn-primary" id="gq-back-to-list">تحديات أخرى ›</button>
+          </div>
+        </div>
+
+      </div><!-- /gq-journey -->
+    </section>
+
     <footer>
       <span>TypeFlow ♾️ — تعلم بحواسك، ابنِ ذاكرتك العضلية</span>
       <span style="font-size: 0.75rem;">ESC وضع التركيز · Alt+N التالي · Alt+R إعادة · Alt+S الإعدادات</span>
@@ -1144,6 +1289,7 @@
   <script src="english-data.js"></script>
   <script src="typing-data.js"></script>
   <script src="words-db.js"></script>
+  <script src="grammar-data.js"></script>
   <script src="audio.js"></script>
   <script src="app.js"></script>
 

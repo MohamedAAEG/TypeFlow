@@ -16,8 +16,9 @@ document.addEventListener("DOMContentLoaded", () => {
     userCtnt:   "typeflow_user_content",  // per-user library: { username: { folders, items } }
     overlay:    "typeflow_default_overlay", // per-user additions to default workspaces
                                              // { username: { "reason:level:size": [text, ...] } }
-    adminEdits: "typeflow_admin_edits"    // admin overrides for default content (CRUD)
+    adminEdits: "typeflow_admin_edits",   // admin overrides for default content (CRUD)
                                              // { reasons: [...], content: { "reason:level:size": [texts] } }
+    grammarLevels: "typeflow_grammar_levels" // grammar quests: { questId: { completed, bestScore, lastLevel } }
   };
 
   // ============================ SUPABASE (shared user store) ============================
@@ -66,6 +67,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let userCtntDB  = JSON.parse(localStorage.getItem(STORAGE.userCtnt) || "{}");
   let overlayDB   = JSON.parse(localStorage.getItem(STORAGE.overlay) || "{}");
   let adminEditsDB= JSON.parse(localStorage.getItem(STORAGE.adminEdits) || '{"reasons":null,"content":{},"deleted":{}}');
+  let grammarProgress = JSON.parse(localStorage.getItem(STORAGE.grammarLevels) || "{}");
   // adminEditsDB structure:
   //   reasons:  null (use default REASONS array) | [ {id, name_ar, name_en, icon}, ... ]
   //   content:  { "reasonId:level:size": [texts] }  — replaces default content for that key
@@ -435,6 +437,11 @@ document.addEventListener("DOMContentLoaded", () => {
   const adminContent = $("admin-content");
   const adminContentBody = $("admin-content-body");
   const adminUsersBody = $("admin-users-body");
+
+  // Grammar Quests
+  const grammarSec     = $("grammar-section");
+  const grammarLink    = $("grammar-link");
+  const grammarBackBtn = $("grammar-back-btn");
 
   // Profile DOM
   const profileBtn  = $("profile-btn");
@@ -1070,6 +1077,7 @@ document.addEventListener("DOMContentLoaded", () => {
     practiceSec.style.display   = "none";
     profileSec.style.display    = "none";
     adminSec.style.display      = "none";
+    if (grammarSec) grammarSec.style.display = "none";
     historySec.style.display    = "none";
     document.body.classList.remove("zen-mode");
     isFocusMode = false;
@@ -1080,6 +1088,263 @@ document.addEventListener("DOMContentLoaded", () => {
     hideAllSections();
     if (landingSec) landingSec.style.display = "flex";
     restartOnboardingBtn.style.display = "none";
+  }
+
+  // ============================ GRAMMAR QUESTS ============================
+  // Sequential 3-level journey per tense: Concept (1) → Typing (2) → Quiz (3).
+  // Data: GRAMMAR_QUESTS (grammar-data.js). Progress: STORAGE.grammarLevels.
+  const GQ = (typeof GRAMMAR_QUESTS !== "undefined" && Array.isArray(GRAMMAR_QUESTS)) ? GRAMMAR_QUESTS : [];
+
+  let gqQuest = null;        // active quest object
+  let gqStep = 1;            // current level (1..3)
+  let gqTypeIdx = 0;         // current practice-sentence index
+  let gqQuizIdx = 0;         // current quiz-question index
+  let gqScore = 0;           // correct answers this quiz run
+  let gqAnswered = false;    // current question already evaluated?
+  let gqSelectedChoice = -1; // selected MCQ index
+
+  function saveGrammarProgress() {
+    localStorage.setItem(STORAGE.grammarLevels, JSON.stringify(grammarProgress));
+  }
+
+  function openGrammarSection() {
+    if (isFocusMode) toggleFocus();
+    hideAllSections();
+    grammarSec.style.display = "flex";
+    restartOnboardingBtn.style.display = "none";
+    showQuestList();
+  }
+
+  function showQuestList() {
+    $("gq-journey").style.display = "none";
+    $("gq-list-screen").style.display = "flex";
+    const grid = $("gq-quests-grid");
+    grid.innerHTML = "";
+    if (!GQ.length) {
+      grid.innerHTML = `<p class="focus-instruction">لا توجد تحديات متاحة بعد.</p>`;
+      return;
+    }
+    GQ.slice().sort((a, b) => (a.order || 0) - (b.order || 0)).forEach(q => {
+      const done = grammarProgress[q.id] && grammarProgress[q.id].completed;
+      const card = document.createElement("button");
+      card.type = "button";
+      card.className = "track-card gq-quest-card";
+      card.dataset.quest = q.id;
+      card.innerHTML = `
+        <div class="track-header">
+          <span class="track-icon">${q.icon || "📘"}</span>
+          ${done ? `<span class="badge en gq-quest-status">✓ مكتمل</span>`
+                 : `<span class="badge en">${q.level || ""}</span>`}
+        </div>
+        <span class="track-title" dir="ltr">${q.name_en || ""}</span>
+        <span class="track-title" style="font-size:1rem;">${q.name_ar || ""}</span>
+        <p class="track-desc">${q.desc_ar || ""}</p>`;
+      card.addEventListener("click", () => startQuest(q.id));
+      grid.appendChild(card);
+    });
+  }
+
+  function startQuest(id) {
+    gqQuest = GQ.find(q => q.id === id);
+    if (!gqQuest) return;
+    gqTypeIdx = 0; gqQuizIdx = 0; gqScore = 0;
+    $("gq-list-screen").style.display = "none";
+    $("gq-journey").style.display = "flex";
+    renderConcept();
+    setQuestStep(1);
+  }
+
+  // Switch level: toggle screens + stepper, then run the level's loader.
+  function setQuestStep(step) {
+    gqStep = step;
+    const levels = { 1: "gq-level-1", 2: "gq-level-2", 3: "gq-level-3" };
+    Object.values(levels).forEach(idv => { const el = $(idv); if (el) el.style.display = "none"; });
+    $("gq-complete").style.display = "none";
+    if (levels[step]) $(levels[step]).style.display = "flex";
+    document.querySelectorAll("#gq-progress .gq-step").forEach(li => {
+      const n = parseInt(li.dataset.step, 10);
+      li.classList.toggle("is-active", n === step);
+      li.classList.toggle("is-done", n < step);
+    });
+    $("gq-progress-fill").style.width = `${(step / 3) * 100}%`;
+    $("gq-progress-text").textContent = `المستوى ${step} من 3`;
+    if (step === 2) loadTypingSentence();
+    if (step === 3) loadQuizQuestion();
+  }
+
+  // ---- Level 1: Concept ----
+  function renderConcept() {
+    const c = gqQuest.concept || {};
+    $("gq-concept-icon").textContent = gqQuest.icon || "📘";
+    $("gq-concept-title").textContent = gqQuest.name_en || "";
+    $("gq-concept-tagline").textContent = c.tagline || "";
+    $("gq-formula-grid").innerHTML = (c.formula || []).map(f => `
+      <div class="gq-formula-card">
+        <span class="gq-formula-label">${f.label || ""}</span>
+        <code class="gq-formula-pattern" dir="ltr">${f.pattern || ""}</code>
+        <span class="gq-formula-example" dir="ltr">${f.example || ""}</span>
+      </div>`).join("");
+    $("gq-rules").innerHTML = (c.rules || []).map(r =>
+      `<li class="gq-rule"><svg class="icon icon-sm"><use href="#i-check"/></svg> <span>${r}</span></li>`).join("");
+    $("gq-signals").innerHTML = (c.signals || []).map(s =>
+      `<span class="gq-signal-chip" dir="ltr">${s}</span>`).join("");
+    $("gq-tip").textContent = c.tip || "";
+  }
+
+  // ---- Level 2: Typing (self-contained engine; mirrors the main one's char classes) ----
+  function loadTypingSentence() {
+    const list = gqQuest.practice || [];
+    if (gqTypeIdx >= list.length) { setQuestStep(3); return; }
+    const item = list[gqTypeIdx];
+    $("gq-typing-counter").textContent = `جملة ${gqTypeIdx + 1} / ${list.length}`;
+    $("gq-typing-rationale").textContent = item.rationale || "";
+    const box = $("gq-typing-text");
+    box.innerHTML = "";
+    [...item.text].forEach((ch, i) => {
+      const span = document.createElement("span");
+      span.className = "char untyped" + (i === 0 ? " active blink" : "");
+      span.textContent = ch;
+      box.appendChild(span);
+    });
+    const input = $("gq-typing-input");
+    input.value = "";
+    input.disabled = false;
+    $("gq-typing-progress-bar").style.width = "0%";
+    input.focus();
+  }
+
+  function handleGqTyping() {
+    if (!gqQuest || gqStep !== 2) return;
+    const list = gqQuest.practice || [];
+    const target = list[gqTypeIdx].text;
+    const typed = $("gq-typing-input").value;
+    const spans = $("gq-typing-text").querySelectorAll(".char");
+    spans.forEach((span, idx) => {
+      span.classList.remove("active", "blink");
+      if (idx < typed.length) {
+        span.className = "char " + (typed[idx] === target[idx] ? "correct" : "incorrect");
+      } else {
+        span.className = "char untyped";
+      }
+      if (idx === typed.length) span.classList.add("active", "blink");
+    });
+    $("gq-typing-progress-bar").style.width = `${Math.min((typed.length / target.length) * 100, 100)}%`;
+    // advance only on an exact, fully-correct match
+    if (typed === target) {
+      $("gq-typing-input").disabled = true;
+      gqTypeIdx++;
+      setTimeout(() => (gqTypeIdx >= list.length ? setQuestStep(3) : loadTypingSentence()), 450);
+    }
+  }
+
+  // ---- Level 3: Quiz (Boss Fight) ----
+  function loadQuizQuestion() {
+    const quiz = gqQuest.quiz || [];
+    gqAnswered = false; gqSelectedChoice = -1;
+    const fb = $("gq-feedback");
+    fb.style.display = "none";
+    fb.classList.remove("is-correct", "is-wrong");
+    $("gq-quiz-submit-row").style.display = "flex";
+    if (gqQuizIdx >= quiz.length) { finishQuest(); return; }
+    const q = quiz[gqQuizIdx];
+    $("gq-quiz-counter").textContent = `سؤال ${gqQuizIdx + 1} / ${quiz.length}`;
+    $("gq-quiz-prompt").textContent = q.prompt || "";
+    const box = $("gq-quiz-choices");
+    box.innerHTML = "";
+    if (q.type === "mcq") {
+      (q.choices || []).forEach((choice, i) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "gq-choice";
+        btn.dir = "ltr";
+        btn.textContent = choice;
+        btn.addEventListener("click", () => {
+          if (gqAnswered) return;
+          gqSelectedChoice = i;
+          box.querySelectorAll(".gq-choice").forEach(c => c.classList.remove("is-selected"));
+          btn.classList.add("is-selected");
+        });
+        box.appendChild(btn);
+      });
+    } else {
+      const inp = document.createElement("input");
+      inp.type = "text";
+      inp.id = "gq-fill-input";
+      inp.className = "gq-fill-input";
+      inp.dir = "ltr";
+      inp.autocomplete = "off";
+      inp.spellcheck = false;
+      inp.placeholder = "اكتب الإجابة هنا…";
+      inp.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); evaluateAnswer(); } });
+      box.appendChild(inp);
+      setTimeout(() => inp.focus(), 50);
+    }
+  }
+
+  function normalizeAns(s) {
+    return (s || "").toLowerCase().trim().replace(/\s+/g, " ").replace(/[.!?]+$/, "");
+  }
+
+  function evaluateAnswer() {
+    if (!gqQuest || gqStep !== 3 || gqAnswered) return;
+    const q = (gqQuest.quiz || [])[gqQuizIdx];
+    let correct = false;
+    if (q.type === "mcq") {
+      if (gqSelectedChoice < 0) { showToast("اختر إجابة أولاً", "info"); return; }
+      correct = gqSelectedChoice === q.answer;
+      $("gq-quiz-choices").querySelectorAll(".gq-choice").forEach((c, i) => {
+        c.disabled = true;
+        c.classList.remove("is-selected");
+        if (i === q.answer) c.classList.add("is-correct");
+        else if (i === gqSelectedChoice) c.classList.add("is-wrong");
+      });
+    } else {
+      const inp = $("gq-fill-input");
+      const val = normalizeAns(inp && inp.value);
+      if (!val) { showToast("اكتب إجابتك أولاً", "info"); return; }
+      correct = (q.answer || []).map(normalizeAns).includes(val);
+      if (inp) { inp.disabled = true; inp.classList.add(correct ? "is-correct" : "is-wrong"); }
+    }
+    gqAnswered = true;
+    if (correct) gqScore++;
+    showFeedback(correct, q);
+  }
+
+  function showFeedback(correct, q) {
+    const fb = $("gq-feedback");
+    fb.style.display = "flex";
+    fb.classList.toggle("is-correct", correct);
+    fb.classList.toggle("is-wrong", !correct);
+    $("gq-feedback-icon").textContent = correct ? "✅" : "⚠️";
+    $("gq-feedback-title").textContent = correct ? "إجابة صحيحة!" : "إجابة غير صحيحة";
+    $("gq-feedback-text").textContent = correct ? (q.correctFeedback || "") : (q.wrongFeedback || "");
+    $("gq-quiz-submit-row").style.display = "none";
+    $("gq-next-q").style.display       = correct ? "inline-flex" : "none";
+    $("gq-retry-q").style.display      = correct ? "none" : "inline-flex";
+    $("gq-review-concept").style.display = correct ? "none" : "inline-flex";
+  }
+
+  function nextQuizQuestion() { gqQuizIdx++; loadQuizQuestion(); }
+  function retryQuizQuestion() { loadQuizQuestion(); }  // reloads the same question, fresh
+
+  function finishQuest() {
+    const total = (gqQuest.quiz || []).length;
+    const prev = grammarProgress[gqQuest.id] || {};
+    grammarProgress[gqQuest.id] = {
+      completed: true,
+      bestScore: Math.max(prev.bestScore || 0, gqScore),
+      lastLevel: 3,
+      total
+    };
+    saveGrammarProgress();
+    document.querySelectorAll("#gq-progress .gq-step").forEach(li => {
+      li.classList.remove("is-active"); li.classList.add("is-done");
+    });
+    $("gq-progress-fill").style.width = "100%";
+    $("gq-progress-text").textContent = "اكتمل التحدّي ✓";
+    ["gq-level-1", "gq-level-2", "gq-level-3"].forEach(idv => { $(idv).style.display = "none"; });
+    $("gq-complete-sub").textContent = `نتيجتك: ${gqScore} / ${total} — أتقنت قاعدة «${gqQuest.name_ar}»`;
+    $("gq-complete").style.display = "flex";
   }
 
   // v2.7: sidebar tab → which inner panel(s) to display (clean 1:1 mapping)
@@ -1524,6 +1789,19 @@ document.addEventListener("DOMContentLoaded", () => {
     // Profile
     profileBtn.addEventListener("click", openProfile);
     profileBackBtn.addEventListener("click", () => closeProfile());
+
+    // Grammar Quests
+    grammarLink.addEventListener("click", openGrammarSection);
+    grammarBackBtn.addEventListener("click", () => { if (profile) enterPracticeMode(); else showLanding(); });
+    $("gq-start-challenge").addEventListener("click", () => setQuestStep(2));
+    $("gq-typing-input").addEventListener("input", handleGqTyping);
+    $("gq-typing-workbench").addEventListener("click", () => $("gq-typing-input").focus());
+    $("gq-quiz-submit").addEventListener("click", evaluateAnswer);
+    $("gq-next-q").addEventListener("click", nextQuizQuestion);
+    $("gq-retry-q").addEventListener("click", retryQuizQuestion);
+    $("gq-review-concept").addEventListener("click", () => setQuestStep(1));
+    $("gq-replay").addEventListener("click", () => { if (gqQuest) startQuest(gqQuest.id); });
+    $("gq-back-to-list").addEventListener("click", showQuestList);
     changePassBtn.addEventListener("click", () => {
       changePassForm.style.display = "flex";
       changePassBtn.style.display = "none";

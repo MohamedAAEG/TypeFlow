@@ -3250,3 +3250,191 @@ input[type="text"].input-minimal:focus {
 .icon-btn .icon { width: 20px; height: 20px; }
 .icon-btn-circular .icon { width: 18px; height: 18px; }
 .profile-sidebar-tab .icon, .tab-icon .icon { width: 18px; height: 18px; }
+
+/* ============================================================
+   Grammar Quests — تحديات القواعد (uses existing design tokens)
+   ============================================================ */
+.grammar-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+  animation: section-in var(--dur-slow) var(--ease-out);
+}
+.grammar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: var(--sp-4);
+}
+
+/* ---- Quest list (selection) ---- */
+.gq-list-screen { display: flex; flex-direction: column; gap: var(--sp-4); }
+.gq-quest-card {
+  text-align: right;           /* RTL */
+  cursor: pointer;
+  background-color: var(--bg-color);
+  font: inherit;
+  color: inherit;
+  width: 100%;
+}
+.gq-quest-card .track-header { justify-content: space-between; }
+.gq-quest-status {
+  background-color: var(--success-bg);
+  color: var(--success-color);
+  border: 1px solid transparent;
+}
+
+/* ---- Progress stepper (1/3 → 2/3 → 3/3) ---- */
+.gq-progress { display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-2) 0; }
+.gq-progress-track {
+  width: 100%; height: 6px;
+  background-color: var(--surface-2);
+  border-radius: var(--r-full);
+  overflow: hidden;
+}
+.gq-progress-fill {
+  height: 100%; width: 33.33%;
+  background-color: var(--accent-strong);
+  border-radius: var(--r-full);
+  transition: width var(--dur) var(--ease-out);
+}
+.gq-steps { list-style: none; display: flex; justify-content: space-between; gap: var(--sp-2); }
+.gq-step {
+  display: flex; flex-direction: column; align-items: center; gap: var(--sp-1);
+  flex: 1; color: var(--text-dim); font-size: var(--fs-sm);
+}
+.gq-step-dot {
+  width: 32px; height: 32px; border-radius: var(--r-full);
+  display: grid; place-items: center;
+  background-color: var(--surface-2); color: var(--text-muted);
+  border: 2px solid var(--border-color); font-weight: 700;
+  transition: background-color var(--dur), color var(--dur), border-color var(--dur), box-shadow var(--dur);
+}
+.gq-step.is-active .gq-step-dot {
+  background-color: var(--accent-strong); color: var(--on-accent);
+  border-color: var(--accent-strong); box-shadow: var(--focus-ring);
+}
+.gq-step.is-done .gq-step-dot {
+  background-color: var(--accent-soft); color: var(--accent); border-color: var(--accent);
+}
+.gq-step.is-active .gq-step-label,
+.gq-step.is-done .gq-step-label { color: var(--text-color); font-weight: 600; }
+.gq-progress-text { text-align: center; color: var(--text-muted); font-size: var(--fs-sm); }
+
+/* ---- Levels (display toggled by JS) ---- */
+.gq-level {
+  display: flex; flex-direction: column; gap: var(--sp-5);
+  animation: panel-fade-in var(--dur-slow) var(--ease-out);
+}
+.gq-level-head { display: flex; justify-content: space-between; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
+.gq-counter {
+  font-family: var(--font-mono); font-weight: 700; color: var(--accent);
+  background-color: var(--accent-soft); padding: var(--sp-1) var(--sp-3);
+  border-radius: var(--r-full); font-size: var(--fs-sm); font-variant-numeric: tabular-nums;
+}
+
+/* ---- Level 1: Concept ---- */
+.gq-concept-head { display: flex; align-items: center; gap: var(--sp-4); }
+.gq-concept-icon { font-size: 2.5rem; line-height: 1; }
+.gq-concept-title { font-size: var(--fs-xl); font-weight: 700; }
+.gq-concept-tagline { color: var(--text-muted); margin-top: var(--sp-1); }
+.gq-formula-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--sp-3); }
+.gq-formula-card {
+  border: 1px solid var(--border-color); border-radius: var(--r-md);
+  padding: var(--sp-4); background-color: var(--bg-color);
+  display: flex; flex-direction: column; gap: var(--sp-2); box-shadow: var(--e-1);
+}
+.gq-formula-label { font-size: var(--fs-sm); font-weight: 700; color: var(--accent); }
+.gq-formula-pattern {
+  font-family: var(--font-mono); font-size: var(--fs-sm);
+  background-color: var(--surface-2); padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-sm); color: var(--text-color);
+}
+.gq-formula-example { color: var(--text-muted); font-size: var(--fs-sm); }
+.gq-rules { list-style: none; display: flex; flex-direction: column; gap: var(--sp-2); }
+.gq-rule { display: flex; align-items: flex-start; gap: var(--sp-2); line-height: 1.6; }
+.gq-rule .icon { width: 18px; height: 18px; color: var(--success-color); flex-shrink: 0; margin-top: 3px; }
+.gq-signals { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.gq-signal-chip {
+  font-family: var(--font-mono); font-size: var(--fs-xs);
+  padding: var(--sp-1) var(--sp-3); border-radius: var(--r-full);
+  background-color: var(--accent-soft); color: var(--accent);
+}
+.gq-tip {
+  background-color: var(--surface-2); border-inline-start: 3px solid var(--accent);
+  padding: var(--sp-3) var(--sp-4); border-radius: var(--r-sm);
+  color: var(--text-muted); font-size: var(--fs-sm); line-height: 1.6;
+}
+
+/* ---- Level 2: Typing ---- */
+.gq-rationale {
+  background-color: var(--accent-soft); border-inline-start: 3px solid var(--accent);
+  border-radius: var(--r-md); padding: var(--sp-3) var(--sp-4);
+  color: var(--text-color); font-size: var(--fs-md); line-height: 1.7;
+}
+.gq-workbench { cursor: text; }
+.gq-typing-progress {
+  position: static;            /* override the absolute .progress-container */
+  height: 6px; border-radius: var(--r-full);
+  background-color: var(--surface-2);
+}
+
+/* ---- Level 3: Quiz ---- */
+.gq-quiz-card {
+  border: 1px solid var(--border-color); border-radius: var(--r-lg);
+  padding: var(--sp-6); background-color: var(--bg-color); box-shadow: var(--e-1);
+  display: flex; flex-direction: column; gap: var(--sp-5);
+}
+.gq-quiz-prompt { font-size: var(--fs-xl); font-weight: 600; text-align: center; line-height: 1.6; }
+.gq-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: var(--sp-3); }
+.gq-choice {
+  padding: var(--sp-3) var(--sp-4); border: 1px solid var(--border-color);
+  border-radius: var(--r-md); background-color: var(--bg-color);
+  font-family: var(--font-mono); font-size: var(--fs-md); cursor: pointer;
+  min-height: 48px; transition: background-color var(--dur-fast), border-color var(--dur-fast), color var(--dur-fast);
+}
+.gq-choice:hover:not(:disabled) { background-color: var(--hover-bg); border-color: var(--border-strong); }
+.gq-choice.is-selected { border-color: var(--accent); background-color: var(--accent-soft); color: var(--accent); }
+.gq-choice.is-correct { border-color: var(--success-color); background-color: var(--success-bg); color: var(--success-color); }
+.gq-choice.is-wrong { border-color: var(--error-color); background-color: var(--error-bg); color: var(--error-color); }
+.gq-choice:disabled { cursor: default; }
+.gq-fill-input {
+  width: 100%; text-align: center; font-family: var(--font-mono); font-size: var(--fs-md);
+  padding: var(--sp-3) var(--sp-4); border: 1px solid var(--border-color);
+  border-radius: var(--r-md); background-color: var(--bg-color); color: var(--text-color);
+  min-height: 48px;
+}
+.gq-fill-input:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
+
+/* ---- Feedback panel (correct / wrong) ---- */
+.gq-feedback {
+  border-radius: var(--r-md); padding: var(--sp-4);
+  display: flex; flex-direction: column; gap: var(--sp-4);
+  border: 1px solid var(--border-color); animation: panel-fade-in var(--dur) var(--ease-out);
+}
+.gq-feedback.is-correct { background-color: var(--success-bg); border-color: var(--success-color); }
+.gq-feedback.is-wrong { background-color: var(--error-bg); border-color: var(--error-color); }
+.gq-feedback-body { display: flex; align-items: flex-start; gap: var(--sp-3); }
+.gq-feedback-icon { font-size: 1.6rem; line-height: 1.4; flex-shrink: 0; }
+.gq-feedback-title { font-weight: 700; margin-bottom: var(--sp-1); }
+.gq-feedback.is-correct .gq-feedback-title { color: var(--success-color); }
+.gq-feedback.is-wrong .gq-feedback-title { color: var(--error-color); }
+.gq-feedback-text { color: var(--text-color); line-height: 1.7; }
+.gq-feedback-actions { display: flex; gap: var(--sp-3); flex-wrap: wrap; }
+
+/* ---- Completion ---- */
+.gq-complete { align-items: center; text-align: center; }
+.gq-complete-emoji { font-size: 3rem; }
+
+/* ---- Responsive ---- */
+@media (max-width: 600px) {
+  .gq-step-label { font-size: var(--fs-xs); }
+  .gq-quiz-prompt { font-size: var(--fs-lg); }
+  .grammar-header h2 { font-size: 1.2rem !important; }
+}
+
+/* grammar-section joins the smooth section-enter group */
+.grammar-section { animation: section-in var(--dur-slow) var(--ease-out); }
