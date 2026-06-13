@@ -20,6 +20,32 @@ document.addEventListener("DOMContentLoaded", () => {
                                              // { reasons: [...], content: { "reason:level:size": [texts] } }
   };
 
+  // ============================ SUPABASE (shared user store) ============================
+  // Users live in a shared Postgres DB so the admin sees everyone across devices.
+  // The publishable key is meant to be public; data is protected by RLS + SECURITY DEFINER RPCs.
+  const SUPA_URL = "https://waqujaacvcodnpxsuooz.supabase.co";
+  const SUPA_KEY = "sb_publishable_WNJOZDD41n0B2A7-e8J4Lg_BLnSo2nw";
+  // Only use the network store over http(s); fall back to localStorage on file:// (insecure context).
+  const SUPA_ON = location.protocol === "http:" || location.protocol === "https:";
+
+  async function supaRpc(fn, args) {
+    const res = await fetch(`${SUPA_URL}/rest/v1/rpc/${fn}`, {
+      method: "POST",
+      headers: { "apikey": SUPA_KEY, "Authorization": "Bearer " + SUPA_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify(args || {})
+    });
+    if (!res.ok) throw new Error(`rpc ${fn} -> HTTP ${res.status}`);
+    return await res.json();
+  }
+
+  // Admin password is kept for the tab session so the admin panel can authorize list/delete calls.
+  function setAdminCreds(username, password) {
+    try { sessionStorage.setItem("typeflow_admin_key", JSON.stringify({ username, password })); } catch {}
+  }
+  function getAdminCreds() {
+    try { return JSON.parse(sessionStorage.getItem("typeflow_admin_key") || "null"); } catch { return null; }
+  }
+
   let currentTheme = localStorage.getItem(STORAGE.theme) || "dark";
   let soundType    = localStorage.getItem(STORAGE.sound) || "blue";
   let isSoundEnabled = localStorage.getItem(STORAGE.soundOn) !== "false";
@@ -2759,6 +2785,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (currentUser) {
       currentUser = null;
       localStorage.removeItem(STORAGE.current);
+      try { sessionStorage.removeItem("typeflow_admin_key"); } catch {}
       updateAuthUI();
       renderHistory();
       showLanding();  // v2.5
@@ -2847,17 +2874,48 @@ document.addEventListener("DOMContentLoaded", () => {
     loginErr.style.display = "none";
     const u = $("login-username").value.trim();
     const p = $("login-password").value;
-    const user = usersDB.find(x => x.username.toLowerCase() === u.toLowerCase());
-    const ok = user ? await verifyPassword(p, user) : false;
-    if (ok) {
-      currentUser = user;
-      localStorage.setItem(STORAGE.current, JSON.stringify(user));
+
+    const loginSucceeded = (sessionUser, isAdmin) => {
+      currentUser = sessionUser;
+      localStorage.setItem(STORAGE.current, JSON.stringify(sessionUser));
+      if (isAdmin) setAdminCreds(u, p);
       updateAuthUI();
       renderHistory();
       closeAuthModal();
       // v2.5 routing: send user to practice or onboarding based on profile
       if (profile) enterPracticeMode();
       else showOnboarding("goal");
+    };
+
+    if (SUPA_ON) {
+      try {
+        const r = await supaRpc("app_login", { p_username: u, p_password: p });
+        if (r && r.id) {
+          loginSucceeded({ id: r.id, username: r.username, email: r.email }, r.username.toLowerCase() === "admin");
+          return;
+        }
+        // Not in the shared DB. A legacy local-only account may still verify here —
+        // if so, migrate it into the shared DB (we have the plaintext at this moment).
+        const localUser = usersDB.find(x => x.username.toLowerCase() === u.toLowerCase());
+        if (localUser && await verifyPassword(p, localUser)) {
+          try { await supaRpc("app_signup", { p_username: localUser.username, p_email: localUser.email || "", p_password: p }); } catch {}
+          loginSucceeded(localUser, localUser.username.toLowerCase() === "admin");
+          return;
+        }
+        loginErr.textContent = "اسم المستخدم أو كلمة المرور غير صحيحة";
+        loginErr.style.display = "block";
+        typingAudio.playKeySound(true);
+        return;
+      } catch (err) {
+        // Network/Supabase unavailable → fall through to the local store.
+        console.warn("Supabase login failed; using local store.", err);
+      }
+    }
+
+    const user = usersDB.find(x => x.username.toLowerCase() === u.toLowerCase());
+    const ok = user ? await verifyPassword(p, user) : false;
+    if (ok) {
+      loginSucceeded(user, user.username.toLowerCase() === "admin");
     } else {
       loginErr.textContent = "اسم المستخدم أو كلمة المرور غير صحيحة";
       loginErr.style.display = "block";
@@ -2875,6 +2933,31 @@ document.addEventListener("DOMContentLoaded", () => {
       signupErr.textContent = "اسم المستخدم يجب أن يكون 3 أحرف فأكثر";
       signupErr.style.display = "block";
       return;
+    }
+    if (SUPA_ON) {
+      try {
+        const r = await supaRpc("app_signup", { p_username: u, p_email: em, p_password: p });
+        if (r && r.error) {
+          signupErr.textContent =
+            r.error === "exists"          ? "اسم المستخدم أو البريد مسجل مسبقاً"
+          : r.error === "password_short"  ? "كلمة المرور يجب أن تكون 6 أحرف فأكثر"
+          : r.error === "username_short"  ? "اسم المستخدم يجب أن يكون 3 أحرف فأكثر"
+          : r.error === "email_invalid"   ? "البريد الإلكتروني غير صالح"
+          : "تعذّر إنشاء الحساب، حاول لاحقاً";
+          signupErr.style.display = "block";
+          return;
+        }
+        currentUser = { id: r.id, username: r.username, email: r.email };
+        localStorage.setItem(STORAGE.current, JSON.stringify(currentUser));
+        updateAuthUI();
+        renderHistory();
+        closeAuthModal();
+        showOnboarding("goal");
+        return;
+      } catch (err) {
+        // Network/Supabase unavailable → fall through to the local store.
+        console.warn("Supabase signup failed; using local store.", err);
+      }
     }
     if (usersDB.some(x => x.username.toLowerCase() === u.toLowerCase() || x.email === em)) {
       signupErr.textContent = "اسم المستخدم أو البريد مسجل مسبقاً";
@@ -3007,17 +3090,34 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  function renderAdminUsers() {
+  async function renderAdminUsers() {
+    adminUsersBody.innerHTML = `<tr><td colspan="8" style="text-align:center;">جارٍ التحميل…</td></tr>`;
+    let users = null;
+    if (SUPA_ON) {
+      const creds = getAdminCreds();
+      if (creds) {
+        try {
+          const r = await supaRpc("app_list_users", { p_admin_user: creds.username, p_admin_pass: creds.password });
+          if (Array.isArray(r)) users = r;
+        } catch (err) { console.warn("Supabase list users failed; using local store.", err); }
+      }
+    }
+    // Fallback when the shared store isn't reachable / no admin session: use the local mirror.
+    if (users === null) {
+      if (SUPA_ON && !getAdminCreds()) {
+        adminUsersBody.innerHTML = `<tr><td colspan="8" style="text-align:center;">أعد تسجيل الدخول كأدمن لعرض قائمة المستخدمين من القاعدة.</td></tr>`;
+        return;
+      }
+      users = usersDB.map(u => ({ username: u.username, email: u.email }));
+    }
+
     adminUsersBody.innerHTML = "";
-    if (usersDB.length === 0) {
+    if (!users.length) {
       adminUsersBody.innerHTML = `<tr><td colspan="8" style="text-align:center;">لا مستخدمين</td></tr>`;
       return;
     }
-    usersDB.forEach(u => {
+    users.forEach(u => {
       const attempts = historyData.filter(h => (h.username || "").toLowerCase() === u.username.toLowerCase());
-      const profileStored = u.username === "admin"
-        ? null
-        : null; // per-user profile is in localStorage of their own device; we show last attempt context
       const lastCtx = attempts[0]?.context || {};
       const avgWpm = attempts.length ? Math.round(attempts.reduce((s, h) => s + h.wpm, 0) / attempts.length) : 0;
       const avgAcc = attempts.length ? Math.round(attempts.reduce((s, h) => s + h.accuracy, 0) / attempts.length) : 0;
@@ -3037,7 +3137,15 @@ document.addEventListener("DOMContentLoaded", () => {
         <td><button class="btn-delete" ${isAdmin ? "disabled" : ""}>حذف</button></td>
       `;
       if (!isAdmin) {
-        tr.querySelector(".btn-delete").addEventListener("click", () => {
+        tr.querySelector(".btn-delete").addEventListener("click", async () => {
+          if (SUPA_ON) {
+            const creds = getAdminCreds();
+            if (creds) {
+              try { await supaRpc("app_delete_user", { p_admin_user: creds.username, p_admin_pass: creds.password, p_target: u.username }); }
+              catch (err) { console.warn("Supabase delete failed.", err); }
+            }
+          }
+          // Keep the local mirror tidy too.
           usersDB = usersDB.filter(x => x.username.toLowerCase() !== u.username.toLowerCase());
           localStorage.setItem(STORAGE.users, JSON.stringify(usersDB));
           historyData = historyData.filter(h => (h.username || "").toLowerCase() !== u.username.toLowerCase());
@@ -3427,11 +3535,6 @@ document.addEventListener("DOMContentLoaded", () => {
     changePassErr.style.display = "none";
     changePassOk.style.display = "none";
     if (!currentUser) return;
-    if (!(await verifyPassword(curPassInput.value, currentUser))) {
-      changePassErr.textContent = "كلمة المرور الحالية غير صحيحة";
-      changePassErr.style.display = "block";
-      return;
-    }
     if (newPassInput.value !== confPassInput.value) {
       changePassErr.textContent = "كلمتا المرور الجديدتان غير متطابقتين";
       changePassErr.style.display = "block";
@@ -3442,21 +3545,51 @@ document.addEventListener("DOMContentLoaded", () => {
       changePassErr.style.display = "block";
       return;
     }
-    // Update DB (hash the new password; fall back to plain in insecure contexts)
-    const idx = usersDB.findIndex(u => u.username.toLowerCase() === currentUser.username.toLowerCase());
-    if (idx >= 0) {
-      const salt = randomSalt();
-      const hash = await hashPassword(newPassInput.value, salt);
-      if (hash) {
-        usersDB[idx].salt = salt;
-        usersDB[idx].passwordHash = hash;
-        delete usersDB[idx].password;
-      } else {
-        usersDB[idx].password = newPassInput.value;
+
+    let handled = false;
+    if (SUPA_ON) {
+      try {
+        const r = await supaRpc("app_change_password", {
+          p_username: currentUser.username, p_old: curPassInput.value, p_new: newPassInput.value
+        });
+        if (r && r.error) {
+          changePassErr.textContent =
+            r.error === "wrong_password"  ? "كلمة المرور الحالية غير صحيحة"
+          : r.error === "password_short"  ? "كلمة المرور يجب أن تكون 6 أحرف فأكثر"
+          : "تعذّر تحديث كلمة المرور";
+          changePassErr.style.display = "block";
+          return;
+        }
+        // Keep the cached admin session password in sync if the admin changed their own.
+        if (currentUser.username.toLowerCase() === "admin") setAdminCreds(currentUser.username, newPassInput.value);
+        handled = true;
+      } catch (err) {
+        console.warn("Supabase change-password failed; using local store.", err);
       }
-      localStorage.setItem(STORAGE.users, JSON.stringify(usersDB));
-      currentUser = usersDB[idx];
-      localStorage.setItem(STORAGE.current, JSON.stringify(currentUser));
+    }
+
+    if (!handled) {
+      // Local fallback: verify the current password, then update the local record.
+      if (!(await verifyPassword(curPassInput.value, currentUser))) {
+        changePassErr.textContent = "كلمة المرور الحالية غير صحيحة";
+        changePassErr.style.display = "block";
+        return;
+      }
+      const idx = usersDB.findIndex(u => u.username.toLowerCase() === currentUser.username.toLowerCase());
+      if (idx >= 0) {
+        const salt = randomSalt();
+        const hash = await hashPassword(newPassInput.value, salt);
+        if (hash) {
+          usersDB[idx].salt = salt;
+          usersDB[idx].passwordHash = hash;
+          delete usersDB[idx].password;
+        } else {
+          usersDB[idx].password = newPassInput.value;
+        }
+        localStorage.setItem(STORAGE.users, JSON.stringify(usersDB));
+        currentUser = usersDB[idx];
+        localStorage.setItem(STORAGE.current, JSON.stringify(currentUser));
+      }
     }
     changePassOk.textContent = "✓ تم تحديث كلمة المرور بنجاح";
     changePassOk.style.display = "block";
