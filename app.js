@@ -1092,9 +1092,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // ============================ GRAMMAR QUESTS ============================
   // Sequential 3-level journey per tense: Concept (1) → Typing (2) → Quiz (3).
-  // Data: GRAMMAR_QUESTS (grammar-data.js). Progress: STORAGE.grammarLevels.
-  const GQ = (typeof GRAMMAR_QUESTS !== "undefined" && Array.isArray(GRAMMAR_QUESTS)) ? GRAMMAR_QUESTS : [];
-
+  // Quests are admin-authored and stored in Supabase (public read); the static
+  // grammar-data.js is only an offline fallback. Progress: STORAGE.grammarLevels.
+  let gqQuests = [];         // loaded quests {id,title,icon,concept[],sentences[],questions[],settings}
   let gqQuest = null;        // active quest object
   let gqStep = 1;            // current level (1..3)
   let gqTypeIdx = 0;         // current practice-sentence index
@@ -1107,11 +1107,44 @@ document.addEventListener("DOMContentLoaded", () => {
     localStorage.setItem(STORAGE.grammarLevels, JSON.stringify(grammarProgress));
   }
 
-  function openGrammarSection() {
+  function escapeHtml(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, m =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]));
+  }
+
+  // Convert a static grammar-data.js quest (old shape) to the dynamic shape (offline fallback).
+  function staticToQuest(s) {
+    const c = s.concept || {};
+    const blocks = [];
+    if (c.tagline) blocks.push({ type: "text", text: c.tagline, size: "lg", bold: true });
+    (c.formula || []).forEach(f => blocks.push({ type: "text", text: `${f.label}:  ${f.pattern}  —  ${f.example}` }));
+    if ((c.rules || []).length) { blocks.push({ type: "divider" }); blocks.push({ type: "text", text: c.rules.map(r => "• " + r).join("\n") }); }
+    if ((c.signals || []).length) blocks.push({ type: "text", text: "كلمات إشارية: " + c.signals.join(" · "), size: "sm", color: "#4d5bd6", bold: true });
+    if (c.tip) blocks.push({ type: "text", text: "💡 " + c.tip, size: "sm", bold: true });
+    return { id: s.id, title: s.name_ar || s.name_en || "قاعدة", icon: s.icon || "📘",
+             concept: blocks, sentences: s.practice || [], questions: s.quiz || [], settings: {} };
+  }
+
+  async function loadGrammarQuests() {
+    if (SUPA_ON) {
+      try {
+        const r = await supaRpc("gq_list_quests", {});
+        if (Array.isArray(r)) { gqQuests = r; return; }
+      } catch (err) { console.warn("Supabase grammar load failed; using offline fallback.", err); }
+    }
+    const staticArr = (typeof GRAMMAR_QUESTS !== "undefined" && Array.isArray(GRAMMAR_QUESTS)) ? GRAMMAR_QUESTS : [];
+    gqQuests = staticArr.map(staticToQuest);
+  }
+
+  async function openGrammarSection() {
     if (isFocusMode) toggleFocus();
     hideAllSections();
     grammarSec.style.display = "flex";
     restartOnboardingBtn.style.display = "none";
+    $("gq-journey").style.display = "none";
+    $("gq-list-screen").style.display = "flex";
+    $("gq-quests-grid").innerHTML = `<p class="focus-instruction">جارٍ التحميل…</p>`;
+    await loadGrammarQuests();
     showQuestList();
   }
 
@@ -1120,11 +1153,11 @@ document.addEventListener("DOMContentLoaded", () => {
     $("gq-list-screen").style.display = "flex";
     const grid = $("gq-quests-grid");
     grid.innerHTML = "";
-    if (!GQ.length) {
-      grid.innerHTML = `<p class="focus-instruction">لا توجد تحديات متاحة بعد.</p>`;
+    if (!gqQuests.length) {
+      grid.innerHTML = `<p class="focus-instruction">لا توجد قواعد بعد.</p>`;
       return;
     }
-    GQ.slice().sort((a, b) => (a.order || 0) - (b.order || 0)).forEach(q => {
+    gqQuests.forEach(q => {
       const done = grammarProgress[q.id] && grammarProgress[q.id].completed;
       const card = document.createElement("button");
       card.type = "button";
@@ -1132,20 +1165,18 @@ document.addEventListener("DOMContentLoaded", () => {
       card.dataset.quest = q.id;
       card.innerHTML = `
         <div class="track-header">
-          <span class="track-icon">${q.icon || "📘"}</span>
-          ${done ? `<span class="badge en gq-quest-status">✓ مكتمل</span>`
-                 : `<span class="badge en">${q.level || ""}</span>`}
+          <span class="track-icon">${escapeHtml(q.icon || "📘")}</span>
+          ${done ? `<span class="badge en gq-quest-status">✓ مكتمل</span>` : ""}
         </div>
-        <span class="track-title" dir="ltr">${q.name_en || ""}</span>
-        <span class="track-title" style="font-size:1rem;">${q.name_ar || ""}</span>
-        <p class="track-desc">${q.desc_ar || ""}</p>`;
+        <span class="track-title">${escapeHtml(q.title || "")}</span>
+        <p class="track-desc">${(q.sentences ? q.sentences.length : 0)} جملة · ${(q.questions ? q.questions.length : 0)} سؤال</p>`;
       card.addEventListener("click", () => startQuest(q.id));
       grid.appendChild(card);
     });
   }
 
   function startQuest(id) {
-    gqQuest = GQ.find(q => q.id === id);
+    gqQuest = gqQuests.find(q => String(q.id) === String(id));
     if (!gqQuest) return;
     gqTypeIdx = 0; gqQuizIdx = 0; gqScore = 0;
     $("gq-list-screen").style.display = "none";
@@ -1172,32 +1203,50 @@ document.addEventListener("DOMContentLoaded", () => {
     if (step === 3) loadQuizQuestion();
   }
 
-  // ---- Level 1: Concept ----
+  // ---- Level 1: Concept (renders the dynamic block array) ----
+  const GQ_SIZE = { sm: "var(--fs-sm)", normal: "var(--fs-base)", lg: "var(--fs-lg)", xl: "var(--fs-2xl)" };
+  function gqColor(c) { return (typeof c === "string" && /^#[0-9a-fA-F]{3,8}$/.test(c)) ? c : ""; }
+
+  function renderConceptBlock(b) {
+    if (!b || !b.type) return "";
+    if (b.type === "text") {
+      const color = gqColor(b.color);
+      const align = ["start", "center", "end", "right", "left"].includes(b.align) ? b.align : "start";
+      const style = `font-size:${GQ_SIZE[b.size] || GQ_SIZE.normal};`
+        + (b.bold ? "font-weight:700;" : "")
+        + (color ? `color:${color};` : "")
+        + `text-align:${align};`;
+      return `<p class="gq-block-text" dir="auto" style="${style}">${escapeHtml(b.text || "")}</p>`;
+    }
+    if (b.type === "image") {
+      const w = /^[0-9]{1,3}%$|^[0-9]{1,4}px$/.test(b.width || "") ? b.width : "100%";
+      return `<figure class="gq-block-image"><img src="${encodeURI(b.url || "")}" alt="${escapeHtml(b.alt || "")}" style="max-width:${w}"></figure>`;
+    }
+    if (b.type === "divider") return `<hr class="gq-block-divider">`;
+    if (b.type === "shape") {
+      const color = gqColor(b.color) || "var(--accent-soft)";
+      const shape = ["box", "line", "circle"].includes(b.shape) ? b.shape : "box";
+      return `<div class="gq-block-shape gq-shape-${shape}" style="background:${color}"></div>`;
+    }
+    return "";
+  }
+
   function renderConcept() {
-    const c = gqQuest.concept || {};
     $("gq-concept-icon").textContent = gqQuest.icon || "📘";
-    $("gq-concept-title").textContent = gqQuest.name_en || "";
-    $("gq-concept-tagline").textContent = c.tagline || "";
-    $("gq-formula-grid").innerHTML = (c.formula || []).map(f => `
-      <div class="gq-formula-card">
-        <span class="gq-formula-label">${f.label || ""}</span>
-        <code class="gq-formula-pattern" dir="ltr">${f.pattern || ""}</code>
-        <span class="gq-formula-example" dir="ltr">${f.example || ""}</span>
-      </div>`).join("");
-    $("gq-rules").innerHTML = (c.rules || []).map(r =>
-      `<li class="gq-rule"><svg class="icon icon-sm"><use href="#i-check"/></svg> <span>${r}</span></li>`).join("");
-    $("gq-signals").innerHTML = (c.signals || []).map(s =>
-      `<span class="gq-signal-chip" dir="ltr">${s}</span>`).join("");
-    $("gq-tip").textContent = c.tip || "";
+    $("gq-concept-title").textContent = gqQuest.title || "";
+    $("gq-concept-blocks").innerHTML = (gqQuest.concept || []).map(renderConceptBlock).join("");
   }
 
   // ---- Level 2: Typing (self-contained engine; mirrors the main one's char classes) ----
   function loadTypingSentence() {
-    const list = gqQuest.practice || [];
+    const list = gqQuest.sentences || [];
     if (gqTypeIdx >= list.length) { setQuestStep(3); return; }
     const item = list[gqTypeIdx];
     $("gq-typing-counter").textContent = `جملة ${gqTypeIdx + 1} / ${list.length}`;
-    $("gq-typing-rationale").textContent = item.rationale || "";
+    const afterMode = gqQuest.settings && gqQuest.settings.rationaleTiming === "after";
+    const rEl = $("gq-typing-rationale");
+    rEl.textContent = item.rationale || "";
+    rEl.style.display = (item.rationale && !afterMode) ? "block" : "none";
     const box = $("gq-typing-text");
     box.innerHTML = "";
     [...item.text].forEach((ch, i) => {
@@ -1215,7 +1264,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function handleGqTyping() {
     if (!gqQuest || gqStep !== 2) return;
-    const list = gqQuest.practice || [];
+    const list = gqQuest.sentences || [];
     const target = list[gqTypeIdx].text;
     const typed = $("gq-typing-input").value;
     const spans = $("gq-typing-text").querySelectorAll(".char");
@@ -1232,14 +1281,22 @@ document.addEventListener("DOMContentLoaded", () => {
     // advance only on an exact, fully-correct match
     if (typed === target) {
       $("gq-typing-input").disabled = true;
+      const item = list[gqTypeIdx];
+      const afterMode = gqQuest.settings && gqQuest.settings.rationaleTiming === "after";
+      let delay = 450;
+      if (afterMode && item.rationale) {
+        const rEl = $("gq-typing-rationale");
+        rEl.textContent = item.rationale; rEl.style.display = "block";
+        delay = 1500;
+      }
       gqTypeIdx++;
-      setTimeout(() => (gqTypeIdx >= list.length ? setQuestStep(3) : loadTypingSentence()), 450);
+      setTimeout(() => (gqTypeIdx >= list.length ? setQuestStep(3) : loadTypingSentence()), delay);
     }
   }
 
   // ---- Level 3: Quiz (Boss Fight) ----
   function loadQuizQuestion() {
-    const quiz = gqQuest.quiz || [];
+    const quiz = gqQuest.questions || [];
     gqAnswered = false; gqSelectedChoice = -1;
     const fb = $("gq-feedback");
     fb.style.display = "none";
@@ -1287,7 +1344,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function evaluateAnswer() {
     if (!gqQuest || gqStep !== 3 || gqAnswered) return;
-    const q = (gqQuest.quiz || [])[gqQuizIdx];
+    const q = (gqQuest.questions || [])[gqQuizIdx];
     let correct = false;
     if (q.type === "mcq") {
       if (gqSelectedChoice < 0) { showToast("اختر إجابة أولاً", "info"); return; }
@@ -1328,7 +1385,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function retryQuizQuestion() { loadQuizQuestion(); }  // reloads the same question, fresh
 
   function finishQuest() {
-    const total = (gqQuest.quiz || []).length;
+    const total = (gqQuest.questions || []).length;
     const prev = grammarProgress[gqQuest.id] || {};
     grammarProgress[gqQuest.id] = {
       completed: true,
