@@ -1545,12 +1545,20 @@ document.addEventListener("DOMContentLoaded", () => {
       <div class="gqa-section">
         <div class="gqa-section-head"><span class="section-title">⌨️ جمل التدريب</span></div>
         <div id="gqa-sentences"></div>
-        <div class="gqa-add-row"><button type="button" class="btn-secondary btn-sm" id="gqa-add-sentence">+ جملة</button></div>
+        <div class="gqa-add-row">
+          <button type="button" class="btn-secondary btn-sm" id="gqa-add-sentence">+ جملة</button>
+          <button type="button" class="btn-secondary btn-sm" id="gqa-import-sentences"><svg class="icon icon-sm"><use href="#i-upload"/></svg> استيراد Excel</button>
+          <button type="button" class="btn-secondary btn-sm" id="gqa-template-sentences"><svg class="icon icon-sm"><use href="#i-download"/></svg> قالب</button>
+        </div>
       </div>
       <div class="gqa-section">
         <div class="gqa-section-head"><span class="section-title">⚔️ الأسئلة</span></div>
         <div id="gqa-questions"></div>
-        <div class="gqa-add-row"><button type="button" class="btn-secondary btn-sm" id="gqa-add-question">+ سؤال</button></div>
+        <div class="gqa-add-row">
+          <button type="button" class="btn-secondary btn-sm" id="gqa-add-question">+ سؤال</button>
+          <button type="button" class="btn-secondary btn-sm" id="gqa-import-questions"><svg class="icon icon-sm"><use href="#i-upload"/></svg> استيراد Excel</button>
+          <button type="button" class="btn-secondary btn-sm" id="gqa-template-questions"><svg class="icon icon-sm"><use href="#i-download"/></svg> قالب</button>
+        </div>
       </div>`;
     $("gqa-title").addEventListener("input", e => d.title = e.target.value);
     $("gqa-icon").addEventListener("input", e => d.icon = e.target.value);
@@ -1559,6 +1567,10 @@ document.addEventListener("DOMContentLoaded", () => {
     ed.querySelectorAll("[data-add-block]").forEach(b => b.addEventListener("click", () => addBlock(b.dataset.addBlock)));
     $("gqa-add-sentence").addEventListener("click", () => { d.sentences.push({ text: "", rationale: "" }); renderGqLists(); });
     $("gqa-add-question").addEventListener("click", () => { d.questions.push({ type: "mcq", prompt: "", choices: ["", ""], answer: 0, correctFeedback: "", wrongFeedback: "" }); renderGqLists(); });
+    $("gqa-import-sentences").addEventListener("click", () => pickExcel(importSentences));
+    $("gqa-template-sentences").addEventListener("click", () => downloadGqTemplate("sentences"));
+    $("gqa-import-questions").addEventListener("click", () => pickExcel(importQuestions));
+    $("gqa-template-questions").addEventListener("click", () => downloadGqTemplate("questions"));
     $("gqa-cancel").addEventListener("click", () => renderGqAdminList());
     $("gqa-save").addEventListener("click", gqaSave);
     renderGqLists();
@@ -1575,6 +1587,93 @@ document.addEventListener("DOMContentLoaded", () => {
     if (tpl) { gqaDraft.concept.push(tpl); renderGqLists(); }
   }
   function gqaSwap(arr, i, j) { [arr[i], arr[j]] = [arr[j], arr[i]]; }
+
+  // ---- Excel import / templates (SheetJS) ----
+  function pickExcel(cb) {
+    if (typeof XLSX === "undefined") { showToast("مكتبة Excel غير محمّلة", "error"); return; }
+    const inp = document.createElement("input");
+    inp.type = "file";
+    inp.accept = ".xlsx,.xls,.csv";
+    inp.addEventListener("change", () => {
+      const f = inp.files && inp.files[0];
+      if (!f) return;
+      const rd = new FileReader();
+      rd.onload = e => {
+        try {
+          const wb = XLSX.read(e.target.result, { type: "array" });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          cb(XLSX.utils.sheet_to_json(ws, { defval: "" }));
+        } catch (err) { console.warn(err); showToast("تعذّر قراءة الملف", "error"); }
+      };
+      rd.readAsArrayBuffer(f);
+    });
+    inp.click();
+  }
+
+  function gqRowGet(row, aliases) {
+    const keys = Object.keys(row);
+    for (const a of aliases) {
+      const k = keys.find(k => k.trim().toLowerCase() === a.toLowerCase());
+      if (k !== undefined) return String(row[k]).trim();
+    }
+    return "";
+  }
+
+  function importSentences(rows) {
+    let n = 0;
+    rows.forEach(r => {
+      const text = gqRowGet(r, ["sentence", "الجملة", "text", "نص"]);
+      const rationale = gqRowGet(r, ["rationale", "التعليل", "الشرح", "why"]);
+      if (text) { gqaDraft.sentences.push({ text, rationale }); n++; }
+    });
+    renderGqLists();
+    showToast(n ? `أُضيفت ${n} جملة` : "لم يُعثر على جمل صالحة", n ? "success" : "info");
+  }
+
+  function importQuestions(rows) {
+    let n = 0;
+    rows.forEach(r => {
+      const prompt = gqRowGet(r, ["prompt", "السؤال", "question"]);
+      if (!prompt) return;
+      const type = (gqRowGet(r, ["type", "النوع"]) || "mcq").toLowerCase().startsWith("f") ? "fill" : "mcq";
+      const correctFeedback = gqRowGet(r, ["correctfeedback", "صح", "الصحيحة", "feedback_correct"]);
+      const wrongFeedback = gqRowGet(r, ["wrongfeedback", "خطأ", "الخاطئة", "feedback_wrong"]);
+      const answerRaw = gqRowGet(r, ["answer", "الإجابة", "الاجابة"]);
+      if (type === "mcq") {
+        const choices = gqRowGet(r, ["choices", "الخيارات", "options"]).split("|").map(x => x.trim()).filter(Boolean);
+        if (choices.length < 2) return;
+        let answer = 0;
+        if (/^\d+$/.test(answerRaw)) answer = Math.max(0, Math.min(choices.length - 1, parseInt(answerRaw, 10) - 1)); // 1-based in sheet
+        else { const idx = choices.findIndex(c => c.toLowerCase() === answerRaw.toLowerCase()); answer = idx >= 0 ? idx : 0; }
+        gqaDraft.questions.push({ type: "mcq", prompt, choices, answer, correctFeedback, wrongFeedback });
+        n++;
+      } else {
+        const answer = answerRaw.split("|").map(x => x.trim()).filter(Boolean);
+        gqaDraft.questions.push({ type: "fill", prompt, answer, correctFeedback, wrongFeedback });
+        n++;
+      }
+    });
+    renderGqLists();
+    showToast(n ? `أُضيف ${n} سؤال` : "لم يُعثر على أسئلة صالحة", n ? "success" : "info");
+  }
+
+  function downloadGqTemplate(kind) {
+    if (typeof XLSX === "undefined") { showToast("مكتبة Excel غير محمّلة", "error"); return; }
+    let aoa;
+    if (kind === "sentences") {
+      aoa = [["sentence", "rationale"],
+             ["She works hard every day.", "الفاعل she فنضيف s للفعل → works."],
+             ["They do not play tennis.", "النفي مع they = do not + فعل مجرّد."]];
+    } else {
+      aoa = [["type", "prompt", "choices", "answer", "correctFeedback", "wrongFeedback"],
+             ["mcq", "She ____ to work.", "go|goes|going|went", "goes", "أحسنت! مع she نضيف s.", "تذكّر: مع he/she/it نضيف s."],
+             ["fill", "They ____ (not/play) tennis.", "", "do not play|don't play", "ممتاز!", "النفي = do not + فعل مجرّد."]];
+    }
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+    XLSX.writeFile(wb, kind === "sentences" ? "typeflow_sentences_template.xlsx" : "typeflow_questions_template.xlsx");
+  }
 
   function renderGqLists() {
     const d = gqaDraft;
