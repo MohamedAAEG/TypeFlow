@@ -1098,6 +1098,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // grammar-data.js is only an offline fallback. Progress: STORAGE.grammarLevels.
   let gqQuests = [];         // loaded quests {id,title,icon,concept[],sentences[],questions[],settings}
   let gqQuest = null;        // active quest object
+  let gqAudio = null;        // current sentence-audio player
   let gqStep = 1;            // current level (1..3)
   let gqTypeIdx = 0;         // current practice-sentence index
   let gqQuizIdx = 0;         // current quiz-question index
@@ -1249,6 +1250,15 @@ document.addEventListener("DOMContentLoaded", () => {
     const rEl = $("gq-typing-rationale");
     rEl.textContent = item.rationale || "";
     rEl.style.display = (item.rationale && !afterMode) ? "block" : "none";
+    const audioBtn = $("gq-sentence-audio");
+    if (item.audioUrl) {
+      audioBtn.style.display = "inline-flex";
+      audioBtn.onclick = () => gqPlaySentenceAudio(item.audioUrl);
+      if (gqQuest.settings && gqQuest.settings.autoSpeak) gqPlaySentenceAudio(item.audioUrl);
+    } else {
+      audioBtn.style.display = "none";
+      audioBtn.onclick = null;
+    }
     const box = $("gq-typing-text");
     box.innerHTML = "";
     [...item.text].forEach((ch, i) => {
@@ -1531,6 +1541,9 @@ document.addEventListener("DOMContentLoaded", () => {
             <option value="after">بعد الانتهاء من الكتابة</option>
           </select>
         </label>
+        <label class="gqa-check" style="flex-direction:row; align-items:center; gap:.4rem; align-self:flex-end;">
+          <input type="checkbox" id="gqa-autospeak"> تشغيل الصوت تلقائياً قبل الكتابة
+        </label>
       </div>
       <div class="gqa-section">
         <div class="gqa-section-head"><span class="section-title">📖 الشرح (بلوكات)</span></div>
@@ -1564,6 +1577,8 @@ document.addEventListener("DOMContentLoaded", () => {
     $("gqa-icon").addEventListener("input", e => d.icon = e.target.value);
     const timing = $("gqa-timing"); timing.value = d.settings.rationaleTiming || "during";
     timing.addEventListener("change", e => d.settings.rationaleTiming = e.target.value);
+    const autospeak = $("gqa-autospeak"); autospeak.checked = !!d.settings.autoSpeak;
+    autospeak.addEventListener("change", e => d.settings.autoSpeak = e.target.checked);
     ed.querySelectorAll("[data-add-block]").forEach(b => b.addEventListener("click", () => addBlock(b.dataset.addBlock)));
     $("gqa-add-sentence").addEventListener("click", () => { d.sentences.push({ text: "", rationale: "" }); renderGqLists(); });
     $("gqa-add-question").addEventListener("click", () => { d.questions.push({ type: "mcq", prompt: "", choices: ["", ""], answer: 0, correctFeedback: "", wrongFeedback: "" }); renderGqLists(); });
@@ -1675,6 +1690,43 @@ document.addEventListener("DOMContentLoaded", () => {
     XLSX.writeFile(wb, kind === "sentences" ? "typeflow_sentences_template.xlsx" : "typeflow_questions_template.xlsx");
   }
 
+  // ---- Media upload (images / audio) via the admin-gated Edge Function ----
+  function pickFile(accept, cb) {
+    const inp = document.createElement("input");
+    inp.type = "file";
+    inp.accept = accept;
+    inp.addEventListener("change", () => { const f = inp.files && inp.files[0]; if (f) cb(f); });
+    inp.click();
+  }
+
+  function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result).split(",")[1]);
+      r.onerror = reject;
+      r.readAsDataURL(file);
+    });
+  }
+
+  async function gqUploadMedia(file, kind) {
+    const c = getAdminCreds();
+    if (!c) throw new Error("no_admin");
+    if (file.size > 6 * 1024 * 1024) throw new Error("too_large");
+    const dataBase64 = await fileToBase64(file);
+    const res = await fetch(`${SUPA_URL}/functions/v1/gq-media-upload`, {
+      method: "POST",
+      headers: { "apikey": SUPA_KEY, "Authorization": "Bearer " + SUPA_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({ admin_user: c.username, admin_pass: c.password, kind, filename: file.name, contentType: file.type, dataBase64 })
+    });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok || j.error) throw new Error(j.error || ("http " + res.status));
+    return j.url;
+  }
+
+  function gqPlaySentenceAudio(url) {
+    try { if (gqAudio) gqAudio.pause(); gqAudio = new Audio(url); gqAudio.play().catch(() => {}); } catch {}
+  }
+
   function renderGqLists() {
     const d = gqaDraft;
 
@@ -1701,12 +1753,15 @@ document.addEventListener("DOMContentLoaded", () => {
             <button class="btn-secondary btn-sm" data-clearcolor>بلا لون</button>
           </div>`;
       } else if (b.type === "image") {
-        inner += `<input class="input-minimal" data-f="url" dir="ltr" placeholder="رابط الصورة (URL)" value="${escapeHtml(b.url || "")}">
+        inner += `<div class="gqa-inline">
+            <input class="input-minimal" data-f="url" dir="ltr" placeholder="رابط الصورة أو ارفع ملفاً" value="${escapeHtml(b.url || "")}" style="flex:1;">
+            <button class="btn-secondary btn-sm" data-upload-image><svg class="icon icon-sm"><use href="#i-upload"/></svg> رفع صورة</button>
+          </div>
+          ${b.url ? `<img class="gqa-img-preview" src="${encodeURI(b.url)}" alt="">` : ""}
           <div class="gqa-inline">
             <input class="input-minimal" data-f="alt" placeholder="وصف بديل" value="${escapeHtml(b.alt || "")}">
             <input class="input-minimal gqa-w" data-f="width" placeholder="العرض (60% أو 300px)" value="${escapeHtml(b.width || "100%")}">
-          </div>
-          <p class="focus-instruction">رفع الصور مباشرةً يأتي في المرحلة 4؛ مؤقتاً الصق رابطاً.</p>`;
+          </div>`;
       } else if (b.type === "shape") {
         inner += `<div class="gqa-inline">
             <label>الشكل<select class="select-minimal" data-f="shape">
@@ -1724,6 +1779,12 @@ document.addEventListener("DOMContentLoaded", () => {
         el.addEventListener(evt, () => { b[f] = el.type === "checkbox" ? el.checked : el.value; });
       });
       const cc = row.querySelector("[data-clearcolor]"); if (cc) cc.addEventListener("click", () => { b.color = ""; showToast("أُزيل اللون (افتراضي)", "info"); });
+      const ui = row.querySelector("[data-upload-image]");
+      if (ui) ui.addEventListener("click", () => pickFile("image/*", async (f) => {
+        ui.disabled = true; ui.textContent = "جارٍ الرفع…";
+        try { b.url = await gqUploadMedia(f, "image"); showToast("تم رفع الصورة", "success"); renderGqLists(); }
+        catch (e) { showToast(e.message === "too_large" ? "الملف كبير جداً (>6م.ب)" : "تعذّر الرفع", "error"); ui.disabled = false; }
+      }));
       row.querySelector("[data-del]").addEventListener("click", () => { d.concept.splice(i, 1); renderGqLists(); });
       row.querySelector("[data-up]").addEventListener("click", () => { if (i > 0) { gqaSwap(d.concept, i, i - 1); renderGqLists(); } });
       row.querySelector("[data-down]").addEventListener("click", () => { if (i < d.concept.length - 1) { gqaSwap(d.concept, i, i + 1); renderGqLists(); } });
@@ -1737,8 +1798,20 @@ document.addEventListener("DOMContentLoaded", () => {
       row.innerHTML = `<div class="gqa-item-head"><strong>جملة ${i + 1}</strong>
         <span class="gqa-item-actions"><button class="btn-delete" data-del>حذف</button></span></div>
         <input class="input-minimal" dir="ltr" data-f="text" placeholder="الجملة بالإنجليزية" value="${escapeHtml(s.text || "")}">
-        <input class="input-minimal" data-f="rationale" placeholder="تعليل الجملة (لماذا تُكتب هكذا)" value="${escapeHtml(s.rationale || "")}">`;
+        <input class="input-minimal" data-f="rationale" placeholder="تعليل الجملة (لماذا تُكتب هكذا)" value="${escapeHtml(s.rationale || "")}">
+        <div class="gqa-inline gqa-audio-row">
+          <button class="btn-secondary btn-sm" data-upload-audio>🎙️ رفع صوت</button>
+          ${s.audioUrl ? `<button class="btn-secondary btn-sm" data-play-audio>🔊 معاينة</button><button class="btn-delete btn-sm" data-del-audio>حذف الصوت</button>` : `<span class="focus-instruction">اختياري: صوت يُنطق قبل الكتابة</span>`}
+        </div>`;
       row.querySelectorAll("[data-f]").forEach(el => el.addEventListener("input", () => s[el.dataset.f] = el.value));
+      const ua = row.querySelector("[data-upload-audio]");
+      ua.addEventListener("click", () => pickFile("audio/*", async (f) => {
+        ua.disabled = true; ua.textContent = "جارٍ الرفع…";
+        try { s.audioUrl = await gqUploadMedia(f, "audio"); showToast("تم رفع الصوت", "success"); renderGqLists(); }
+        catch (e) { showToast(e.message === "too_large" ? "الملف كبير جداً (>6م.ب)" : "تعذّر الرفع", "error"); ua.disabled = false; }
+      }));
+      const pa = row.querySelector("[data-play-audio]"); if (pa) pa.addEventListener("click", () => gqPlaySentenceAudio(s.audioUrl));
+      const da = row.querySelector("[data-del-audio]"); if (da) da.addEventListener("click", () => { delete s.audioUrl; renderGqLists(); });
       row.querySelector("[data-del]").addEventListener("click", () => { d.sentences.splice(i, 1); renderGqLists(); });
       sc.appendChild(row);
     });
