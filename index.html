@@ -1019,6 +1019,7 @@
       <div class="auth-tabs" style="margin-bottom: 1.5rem; width: 100%;">
         <button type="button" class="auth-tab active" id="admin-tab-content">إدارة المحتوى</button>
         <button type="button" class="auth-tab" id="admin-tab-users">إدارة المستخدمين</button>
+        <button type="button" class="auth-tab" id="admin-tab-grammar">تحديات القواعد</button>
       </div>
 
       <!-- Content Panel -->
@@ -1095,6 +1096,20 @@
             </table>
           </div>
         </div>
+      </div>
+
+      <!-- Grammar authoring panel (admin) -->
+      <div class="admin-panel-content" id="admin-panel-grammar" style="display: none;">
+        <div id="gqa-list-view">
+          <div class="gqa-toolbar">
+            <h3 style="font-size: 1.1rem;">القواعد (Grammar Quests)</h3>
+            <button type="button" class="btn-primary btn-sm" id="gqa-new-btn">
+              <svg class="icon icon-sm"><use href="#i-plus"/></svg> قاعدة جديدة
+            </button>
+          </div>
+          <div id="gqa-list"><!-- rows by JS --></div>
+        </div>
+        <div id="gqa-editor" style="display: none;"><!-- editor by JS --></div>
       </div>
     </section>
 

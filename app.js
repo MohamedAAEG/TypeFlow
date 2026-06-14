@@ -427,8 +427,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const adminBackBtn = $("admin-back-btn");
   const adminTabContent = $("admin-tab-content");
   const adminTabUsers = $("admin-tab-users");
+  const adminTabGrammar = $("admin-tab-grammar");
   const adminPanelContent = $("admin-panel-content-mgr");
   const adminPanelUsers = $("admin-panel-users");
+  const adminPanelGrammar = $("admin-panel-grammar");
   const addContentForm = $("add-content-form");
   const adminTrack = $("admin-track");
   const adminReason = $("admin-reason");
@@ -1400,8 +1402,305 @@ document.addEventListener("DOMContentLoaded", () => {
     $("gq-progress-fill").style.width = "100%";
     $("gq-progress-text").textContent = "اكتمل التحدّي ✓";
     ["gq-level-1", "gq-level-2", "gq-level-3"].forEach(idv => { $(idv).style.display = "none"; });
-    $("gq-complete-sub").textContent = `نتيجتك: ${gqScore} / ${total} — أتقنت قاعدة «${gqQuest.name_ar}»`;
+    $("gq-complete-sub").textContent = `نتيجتك: ${gqScore} / ${total} — أتقنت قاعدة «${gqQuest.title}»`;
     $("gq-complete").style.display = "flex";
+  }
+
+  // ============================ GRAMMAR QUESTS — ADMIN AUTHORING ============================
+  let gqaDraft = null;      // quest being edited
+  let gqaEditingId = null;  // id when editing existing (null = new)
+
+  function gqaCreds() { return getAdminCreds(); }
+
+  async function renderGqAdminList() {
+    $("gqa-editor").style.display = "none";
+    $("gqa-list-view").style.display = "block";
+    const list = $("gqa-list");
+    list.innerHTML = `<p class="focus-instruction">جارٍ التحميل…</p>`;
+    await loadGrammarQuests();
+    if (!gqQuests.length) { list.innerHTML = `<p class="focus-instruction">لا توجد قواعد. اضغط «قاعدة جديدة».</p>`; return; }
+    list.innerHTML = "";
+    gqQuests.forEach((q, i) => {
+      const row = document.createElement("div");
+      row.className = "gqa-row";
+      row.innerHTML = `
+        <span class="gqa-row-icon">${escapeHtml(q.icon || "📘")}</span>
+        <span class="gqa-row-title">${escapeHtml(q.title || "")}</span>
+        <span class="gqa-row-meta">${(q.sentences || []).length} جملة · ${(q.questions || []).length} سؤال</span>
+        <span class="gqa-row-actions">
+          <button class="btn-secondary btn-sm" data-up ${i === 0 ? "disabled" : ""} title="أعلى">↑</button>
+          <button class="btn-secondary btn-sm" data-down ${i === gqQuests.length - 1 ? "disabled" : ""} title="أسفل">↓</button>
+          <button class="btn-secondary btn-sm" data-edit>تعديل</button>
+          <button class="btn-delete" data-del>حذف</button>
+        </span>`;
+      row.querySelector("[data-edit]").addEventListener("click", () => gqaEdit(q.id));
+      row.querySelector("[data-del]").addEventListener("click", () => gqaDelete(q.id, q.title));
+      row.querySelector("[data-up]").addEventListener("click", () => gqaMove(i, -1));
+      row.querySelector("[data-down]").addEventListener("click", () => gqaMove(i, 1));
+      list.appendChild(row);
+    });
+  }
+
+  function gqaBlankDraft() {
+    return { id: null, title: "", icon: "📘", settings: { rationaleTiming: "during", autoSpeak: false },
+             concept: [], sentences: [], questions: [] };
+  }
+
+  function gqaNew() {
+    if (!gqaCreds()) { showToast("أعد تسجيل الدخول كأدمن أولاً", "error"); return; }
+    gqaEditingId = null;
+    gqaDraft = gqaBlankDraft();
+    showGqEditor();
+  }
+
+  function gqaEdit(id) {
+    const q = gqQuests.find(x => String(x.id) === String(id));
+    if (!q) return;
+    gqaEditingId = q.id;
+    gqaDraft = JSON.parse(JSON.stringify({
+      id: q.id, title: q.title || "", icon: q.icon || "📘",
+      settings: Object.assign({ rationaleTiming: "during", autoSpeak: false }, q.settings || {}),
+      concept: q.concept || [], sentences: q.sentences || [], questions: q.questions || []
+    }));
+    showGqEditor();
+  }
+
+  function showGqEditor() {
+    $("gqa-list-view").style.display = "none";
+    $("gqa-editor").style.display = "block";
+    renderGqEditor();
+  }
+
+  async function gqaDelete(id, title) {
+    if (!gqaCreds()) { showToast("أعد تسجيل الدخول كأدمن أولاً", "error"); return; }
+    if (!confirm(`حذف القاعدة «${title}»؟`)) return;
+    try {
+      const c = gqaCreds();
+      await supaRpc("gq_delete_quest", { p_admin_user: c.username, p_admin_pass: c.password, p_id: id });
+      showToast("تم الحذف", "success");
+      renderGqAdminList();
+    } catch (e) { showToast("تعذّر الحذف", "error"); }
+  }
+
+  async function gqaMove(index, dir) {
+    const j = index + dir;
+    if (j < 0 || j >= gqQuests.length) return;
+    if (!gqaCreds()) { showToast("أعد تسجيل الدخول كأدمن أولاً", "error"); return; }
+    const ids = gqQuests.map(q => q.id);
+    [ids[index], ids[j]] = [ids[j], ids[index]];
+    try {
+      const c = gqaCreds();
+      await supaRpc("gq_reorder", { p_admin_user: c.username, p_admin_pass: c.password, p_ids: ids });
+      renderGqAdminList();
+    } catch (e) { showToast("تعذّر الترتيب", "error"); }
+  }
+
+  async function gqaSave() {
+    if (!gqaCreds()) { showToast("أعد تسجيل الدخول كأدمن أولاً", "error"); return; }
+    if (!gqaDraft.title.trim()) { showToast("اكتب عنوان القاعدة", "error"); return; }
+    const payload = Object.assign({}, gqaDraft);
+    if (gqaEditingId) payload.id = gqaEditingId; else delete payload.id;
+    try {
+      const c = gqaCreds();
+      const r = await supaRpc("gq_upsert_quest", { p_admin_user: c.username, p_admin_pass: c.password, p_quest: payload });
+      if (r && r.error) { showToast("غير مصرّح — تحقّق من دخول الأدمن", "error"); return; }
+      showToast("تم حفظ القاعدة", "success");
+      renderGqAdminList();
+    } catch (e) { showToast("تعذّر الحفظ", "error"); }
+  }
+
+  function renderGqEditor() {
+    const d = gqaDraft;
+    const ed = $("gqa-editor");
+    ed.innerHTML = `
+      <div class="gqa-toolbar">
+        <h3 style="font-size:1.1rem;">${gqaEditingId ? "تعديل قاعدة" : "قاعدة جديدة"}</h3>
+        <div style="display:flex; gap:.5rem;">
+          <button type="button" class="btn-secondary btn-sm" id="gqa-cancel">إلغاء</button>
+          <button type="button" class="btn-primary btn-sm" id="gqa-save">💾 حفظ القاعدة</button>
+        </div>
+      </div>
+      <div class="gqa-field-row">
+        <label class="gqa-icon-field">الأيقونة<input id="gqa-icon" class="input-minimal" maxlength="2" value="${escapeHtml(d.icon)}"></label>
+        <label style="flex:1;">عنوان القاعدة<input id="gqa-title" class="input-minimal" value="${escapeHtml(d.title)}" placeholder="مثال: المضارع البسيط"></label>
+      </div>
+      <div class="gqa-field-row">
+        <label>توقيت ظهور شرح الجملة
+          <select id="gqa-timing" class="select-minimal">
+            <option value="during">أثناء الكتابة</option>
+            <option value="after">بعد الانتهاء من الكتابة</option>
+          </select>
+        </label>
+      </div>
+      <div class="gqa-section">
+        <div class="gqa-section-head"><span class="section-title">📖 الشرح (بلوكات)</span></div>
+        <div id="gqa-blocks"></div>
+        <div class="gqa-add-row">
+          <button type="button" class="btn-secondary btn-sm" data-add-block="text">+ نص</button>
+          <button type="button" class="btn-secondary btn-sm" data-add-block="image">+ صورة</button>
+          <button type="button" class="btn-secondary btn-sm" data-add-block="divider">+ فاصل</button>
+          <button type="button" class="btn-secondary btn-sm" data-add-block="shape">+ شكل</button>
+        </div>
+      </div>
+      <div class="gqa-section">
+        <div class="gqa-section-head"><span class="section-title">⌨️ جمل التدريب</span></div>
+        <div id="gqa-sentences"></div>
+        <div class="gqa-add-row"><button type="button" class="btn-secondary btn-sm" id="gqa-add-sentence">+ جملة</button></div>
+      </div>
+      <div class="gqa-section">
+        <div class="gqa-section-head"><span class="section-title">⚔️ الأسئلة</span></div>
+        <div id="gqa-questions"></div>
+        <div class="gqa-add-row"><button type="button" class="btn-secondary btn-sm" id="gqa-add-question">+ سؤال</button></div>
+      </div>`;
+    $("gqa-title").addEventListener("input", e => d.title = e.target.value);
+    $("gqa-icon").addEventListener("input", e => d.icon = e.target.value);
+    const timing = $("gqa-timing"); timing.value = d.settings.rationaleTiming || "during";
+    timing.addEventListener("change", e => d.settings.rationaleTiming = e.target.value);
+    ed.querySelectorAll("[data-add-block]").forEach(b => b.addEventListener("click", () => addBlock(b.dataset.addBlock)));
+    $("gqa-add-sentence").addEventListener("click", () => { d.sentences.push({ text: "", rationale: "" }); renderGqLists(); });
+    $("gqa-add-question").addEventListener("click", () => { d.questions.push({ type: "mcq", prompt: "", choices: ["", ""], answer: 0, correctFeedback: "", wrongFeedback: "" }); renderGqLists(); });
+    $("gqa-cancel").addEventListener("click", () => renderGqAdminList());
+    $("gqa-save").addEventListener("click", gqaSave);
+    renderGqLists();
+  }
+
+  const GQA_BLOCK_LABEL = { text: "نص", image: "صورة", divider: "فاصل", shape: "شكل" };
+  function addBlock(type) {
+    const tpl = {
+      text: { type: "text", text: "", size: "normal", bold: false, color: "", align: "start" },
+      image: { type: "image", url: "", alt: "", width: "100%" },
+      divider: { type: "divider" },
+      shape: { type: "shape", shape: "box", color: "" }
+    }[type];
+    if (tpl) { gqaDraft.concept.push(tpl); renderGqLists(); }
+  }
+  function gqaSwap(arr, i, j) { [arr[i], arr[j]] = [arr[j], arr[i]]; }
+
+  function renderGqLists() {
+    const d = gqaDraft;
+
+    // ---- concept blocks ----
+    const bc = $("gqa-blocks"); bc.innerHTML = "";
+    d.concept.forEach((b, i) => {
+      const row = document.createElement("div"); row.className = "gqa-item";
+      let inner = `<div class="gqa-item-head"><strong>${GQA_BLOCK_LABEL[b.type] || b.type}</strong>
+        <span class="gqa-item-actions">
+          <button class="btn-secondary btn-sm" data-up ${i === 0 ? "disabled" : ""}>↑</button>
+          <button class="btn-secondary btn-sm" data-down ${i === d.concept.length - 1 ? "disabled" : ""}>↓</button>
+          <button class="btn-delete" data-del>حذف</button></span></div>`;
+      if (b.type === "text") {
+        inner += `<textarea class="input-minimal gqa-ta" data-f="text" rows="2" placeholder="النص">${escapeHtml(b.text || "")}</textarea>
+          <div class="gqa-inline">
+            <label>الحجم<select class="select-minimal" data-f="size">
+              ${["sm", "normal", "lg", "xl"].map(s => `<option value="${s}" ${b.size === s ? "selected" : ""}>${({ sm: "صغير", normal: "عادي", lg: "كبير", xl: "كبير جداً" })[s]}</option>`).join("")}
+            </select></label>
+            <label>المحاذاة<select class="select-minimal" data-f="align">
+              ${["start", "center", "end"].map(a => `<option value="${a}" ${(b.align || "start") === a ? "selected" : ""}>${({ start: "بداية", center: "وسط", end: "نهاية" })[a]}</option>`).join("")}
+            </select></label>
+            <label>اللون<input type="color" data-f="color" value="${/^#[0-9a-fA-F]{6}$/.test(b.color || "") ? b.color : "#000000"}"></label>
+            <label class="gqa-check"><input type="checkbox" data-f="bold" ${b.bold ? "checked" : ""}> غامق</label>
+            <button class="btn-secondary btn-sm" data-clearcolor>بلا لون</button>
+          </div>`;
+      } else if (b.type === "image") {
+        inner += `<input class="input-minimal" data-f="url" dir="ltr" placeholder="رابط الصورة (URL)" value="${escapeHtml(b.url || "")}">
+          <div class="gqa-inline">
+            <input class="input-minimal" data-f="alt" placeholder="وصف بديل" value="${escapeHtml(b.alt || "")}">
+            <input class="input-minimal gqa-w" data-f="width" placeholder="العرض (60% أو 300px)" value="${escapeHtml(b.width || "100%")}">
+          </div>
+          <p class="focus-instruction">رفع الصور مباشرةً يأتي في المرحلة 4؛ مؤقتاً الصق رابطاً.</p>`;
+      } else if (b.type === "shape") {
+        inner += `<div class="gqa-inline">
+            <label>الشكل<select class="select-minimal" data-f="shape">
+              ${["box", "line", "circle"].map(s => `<option value="${s}" ${b.shape === s ? "selected" : ""}>${({ box: "مستطيل", line: "خط", circle: "دائرة" })[s]}</option>`).join("")}
+            </select></label>
+            <label>اللون<input type="color" data-f="color" value="${/^#[0-9a-fA-F]{6}$/.test(b.color || "") ? b.color : "#4d5bd6"}"></label>
+          </div>`;
+      } else {
+        inner += `<p class="focus-instruction">فاصل أفقي.</p>`;
+      }
+      row.innerHTML = inner;
+      row.querySelectorAll("[data-f]").forEach(el => {
+        const f = el.dataset.f;
+        const evt = (el.type === "checkbox" || el.type === "color" || el.tagName === "SELECT") ? "change" : "input";
+        el.addEventListener(evt, () => { b[f] = el.type === "checkbox" ? el.checked : el.value; });
+      });
+      const cc = row.querySelector("[data-clearcolor]"); if (cc) cc.addEventListener("click", () => { b.color = ""; showToast("أُزيل اللون (افتراضي)", "info"); });
+      row.querySelector("[data-del]").addEventListener("click", () => { d.concept.splice(i, 1); renderGqLists(); });
+      row.querySelector("[data-up]").addEventListener("click", () => { if (i > 0) { gqaSwap(d.concept, i, i - 1); renderGqLists(); } });
+      row.querySelector("[data-down]").addEventListener("click", () => { if (i < d.concept.length - 1) { gqaSwap(d.concept, i, i + 1); renderGqLists(); } });
+      bc.appendChild(row);
+    });
+
+    // ---- sentences ----
+    const sc = $("gqa-sentences"); sc.innerHTML = "";
+    d.sentences.forEach((s, i) => {
+      const row = document.createElement("div"); row.className = "gqa-item";
+      row.innerHTML = `<div class="gqa-item-head"><strong>جملة ${i + 1}</strong>
+        <span class="gqa-item-actions"><button class="btn-delete" data-del>حذف</button></span></div>
+        <input class="input-minimal" dir="ltr" data-f="text" placeholder="الجملة بالإنجليزية" value="${escapeHtml(s.text || "")}">
+        <input class="input-minimal" data-f="rationale" placeholder="تعليل الجملة (لماذا تُكتب هكذا)" value="${escapeHtml(s.rationale || "")}">`;
+      row.querySelectorAll("[data-f]").forEach(el => el.addEventListener("input", () => s[el.dataset.f] = el.value));
+      row.querySelector("[data-del]").addEventListener("click", () => { d.sentences.splice(i, 1); renderGqLists(); });
+      sc.appendChild(row);
+    });
+
+    // ---- questions ----
+    const qc = $("gqa-questions"); qc.innerHTML = "";
+    d.questions.forEach((q, i) => {
+      const row = document.createElement("div"); row.className = "gqa-item";
+      const isMcq = q.type === "mcq";
+      let inner = `<div class="gqa-item-head"><strong>سؤال ${i + 1}</strong>
+        <span class="gqa-item-actions">
+          <label class="gqa-type-label">النوع
+            <select class="select-minimal" data-f="type">
+              <option value="mcq" ${isMcq ? "selected" : ""}>اختيار</option>
+              <option value="fill" ${!isMcq ? "selected" : ""}>إكمال فراغ</option>
+            </select></label>
+          <button class="btn-delete" data-del>حذف</button></span></div>
+        <input class="input-minimal" dir="ltr" data-f="prompt" placeholder="نص السؤال (استخدم ____ للفراغ)" value="${escapeHtml(q.prompt || "")}">`;
+      if (isMcq) {
+        const choices = (q.choices && q.choices.length) ? q.choices : ["", ""];
+        inner += `<div class="gqa-choices">`;
+        choices.forEach((ch, ci) => {
+          inner += `<div class="gqa-choice-row">
+            <input type="radio" name="gqa-ans-${i}" data-correct value="${ci}" ${q.answer === ci ? "checked" : ""} title="الإجابة الصحيحة">
+            <input class="input-minimal" dir="ltr" data-choice="${ci}" placeholder="خيار ${ci + 1}" value="${escapeHtml(ch)}">
+            <button class="btn-delete btn-sm" data-delchoice="${ci}">×</button>
+          </div>`;
+        });
+        inner += `</div><button class="btn-secondary btn-sm" data-addchoice>+ خيار</button>`;
+      } else {
+        inner += `<input class="input-minimal" dir="ltr" data-f="answerfill" placeholder="الإجابات المقبولة (افصل بـ | )" value="${escapeHtml((q.answer || []).join(" | "))}">`;
+      }
+      inner += `<input class="input-minimal" data-f="correctFeedback" placeholder="يظهر عند الإجابة الصحيحة" value="${escapeHtml(q.correctFeedback || "")}">
+        <input class="input-minimal" data-f="wrongFeedback" placeholder="يظهر عند الإجابة الخاطئة (ذكّر بالقاعدة)" value="${escapeHtml(q.wrongFeedback || "")}">`;
+      row.innerHTML = inner;
+      row.querySelector('[data-f="type"]').addEventListener("change", e => {
+        q.type = e.target.value;
+        if (q.type === "mcq" && !Array.isArray(q.choices)) { q.choices = ["", ""]; q.answer = 0; }
+        if (q.type === "fill" && !Array.isArray(q.answer)) { q.answer = []; }
+        renderGqLists();
+      });
+      ["prompt", "correctFeedback", "wrongFeedback"].forEach(f => {
+        const el = row.querySelector(`[data-f="${f}"]`); if (el) el.addEventListener("input", () => q[f] = el.value);
+      });
+      if (isMcq) {
+        row.querySelectorAll("[data-choice]").forEach(el => el.addEventListener("input", () => { q.choices[+el.dataset.choice] = el.value; }));
+        row.querySelectorAll("[data-correct]").forEach(el => el.addEventListener("change", () => { q.answer = +el.value; }));
+        row.querySelectorAll("[data-delchoice]").forEach(el => el.addEventListener("click", () => {
+          if (q.choices.length <= 2) { showToast("سؤال الاختيار يحتاج خيارين على الأقل", "info"); return; }
+          q.choices.splice(+el.dataset.delchoice, 1);
+          if (q.answer >= q.choices.length) q.answer = 0;
+          renderGqLists();
+        }));
+        row.querySelector("[data-addchoice]").addEventListener("click", () => { q.choices.push(""); renderGqLists(); });
+      } else {
+        const af = row.querySelector('[data-f="answerfill"]');
+        af.addEventListener("input", () => { q.answer = af.value.split("|").map(x => x.trim()).filter(Boolean); });
+      }
+      row.querySelector("[data-del]").addEventListener("click", () => { d.questions.splice(i, 1); renderGqLists(); });
+      qc.appendChild(row);
+    });
   }
 
   // v2.7: sidebar tab → which inner panel(s) to display (clean 1:1 mapping)
@@ -1706,6 +2005,8 @@ document.addEventListener("DOMContentLoaded", () => {
     adminBackBtn.addEventListener("click", closeAdmin);
     adminTabContent.addEventListener("click", () => switchAdminTab("content"));
     adminTabUsers.addEventListener("click", () => switchAdminTab("users"));
+    adminTabGrammar.addEventListener("click", () => switchAdminTab("grammar"));
+    $("gqa-new-btn").addEventListener("click", gqaNew);
     adminTrack.addEventListener("change", updateAdminFormVisibility);
     addContentForm.addEventListener("submit", handleAddContent);
 
@@ -3348,18 +3649,18 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function switchAdminTab(tab) {
-    if (tab === "content") {
-      adminTabContent.classList.add("active");
-      adminTabUsers.classList.remove("active");
-      adminPanelContent.style.display = "block";
-      adminPanelUsers.style.display = "none";
-    } else {
-      adminTabContent.classList.remove("active");
-      adminTabUsers.classList.add("active");
-      adminPanelContent.style.display = "none";
-      adminPanelUsers.style.display = "block";
-      renderAdminUsers();
-    }
+    const map = {
+      content: [adminTabContent, adminPanelContent],
+      users:   [adminTabUsers, adminPanelUsers],
+      grammar: [adminTabGrammar, adminPanelGrammar]
+    };
+    Object.entries(map).forEach(([k, [btn, panel]]) => {
+      if (!btn || !panel) return;
+      btn.classList.toggle("active", k === tab);
+      panel.style.display = (k === tab) ? "block" : "none";
+    });
+    if (tab === "users") renderAdminUsers();
+    if (tab === "grammar") renderGqAdminList();
   }
 
   function populateAdminFormSelects() {
