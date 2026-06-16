@@ -47,6 +47,73 @@ document.addEventListener("DOMContentLoaded", () => {
     try { return JSON.parse(sessionStorage.getItem("typeflow_admin_key") || "null"); } catch { return null; }
   }
 
+  // ============================ USER-DATA SYNC (DB = source of truth) ============================
+  // For a logged-in user, all per-user data lives in Supabase and is pulled on login/startup and
+  // written through on every change. localStorage is only a local cache. This removes the
+  // "saved on one device, missing on another" inconsistency of a browser-only store.
+  const USER_STATE_KEYS = [
+    STORAGE.profile, STORAGE.progress, STORAGE.history,
+    "typeflow_learning_list", STORAGE.userCtnt, STORAGE.overlay,
+    STORAGE.grammarLevels, "typeflow_appearance"
+  ];
+  const _origSetItem = localStorage.setItem.bind(localStorage);
+  let _stateSyncTimer = null;
+  let _suppressStateSync = false;
+
+  // Intercept writes once: any change to a user-data key schedules a debounced DB sync.
+  localStorage.setItem = function (key, value) {
+    _origSetItem(key, value);
+    if (!_suppressStateSync && SUPA_ON && userToken() && USER_STATE_KEYS.includes(key)) scheduleStateSync();
+  };
+
+  function userToken() { return currentUser && currentUser.token; }
+  function scheduleStateSync() { clearTimeout(_stateSyncTimer); _stateSyncTimer = setTimeout(pushUserState, 1200); }
+
+  async function pushUserState() {
+    const tok = userToken();
+    if (!tok || !SUPA_ON) return;
+    const data = {};
+    USER_STATE_KEYS.forEach(k => {
+      const v = localStorage.getItem(k);
+      if (v != null) { try { data[k] = JSON.parse(v); } catch { data[k] = v; } }
+    });
+    try { await supaRpc("us_save", { p_token: tok, p_data: data }); }
+    catch (e) { console.warn("user-state save failed", e); }
+  }
+
+  // Pull remote state into localStorage + the in-memory vars. Returns true if remote had data.
+  async function pullUserState() {
+    const tok = userToken();
+    if (!tok || !SUPA_ON) return false;
+    let r;
+    try { r = await supaRpc("us_load", { p_token: tok }); }
+    catch (e) { console.warn("user-state load failed", e); return false; }
+    if (!r || r.error || !r.data) return false;
+    const keys = Object.keys(r.data);
+    if (!keys.length) return false;
+    _suppressStateSync = true;
+    USER_STATE_KEYS.forEach(k => { if (r.data[k] !== undefined) _origSetItem(k, JSON.stringify(r.data[k])); });
+    _suppressStateSync = false;
+    reloadUserStateVars();
+    return true;
+  }
+
+  function reloadUserStateVars() {
+    historyData     = JSON.parse(localStorage.getItem(STORAGE.history) || "[]");
+    profile         = JSON.parse(localStorage.getItem(STORAGE.profile) || "null");
+    progress        = JSON.parse(localStorage.getItem(STORAGE.progress) || "{}");
+    userCtntDB      = JSON.parse(localStorage.getItem(STORAGE.userCtnt) || "{}");
+    overlayDB       = JSON.parse(localStorage.getItem(STORAGE.overlay) || "{}");
+    grammarProgress = JSON.parse(localStorage.getItem(STORAGE.grammarLevels) || "{}");
+    if (typeof applyAppearance === "function") { try { applyAppearance(); } catch {} }
+  }
+
+  // Clear the local cache of user data (on logout) so the next user/guest starts clean.
+  function clearUserStateLocal() {
+    USER_STATE_KEYS.forEach(k => localStorage.removeItem(k));
+    reloadUserStateVars();
+  }
+
   let currentTheme = localStorage.getItem(STORAGE.theme) || "dark";
   let soundType    = localStorage.getItem(STORAGE.sound) || "blue";
   let isSoundEnabled = localStorage.getItem(STORAGE.soundOn) !== "false";
@@ -568,17 +635,22 @@ document.addEventListener("DOMContentLoaded", () => {
     loadTtsVoices();
     if (window.speechSynthesis) speechSynthesis.onvoiceschanged = loadTtsVoices;
 
-    // Route v2.5:
+    // Route v2.5. For a logged-in user, pull the latest data from the DB first
+    // (it is the source of truth), then route based on the refreshed profile.
+    if (currentUser && userToken() && SUPA_ON) {
+      pullUserState().catch(() => {}).finally(routeAfterAuth);
+    } else {
+      routeAfterAuth();
+    }
+  }
+
+  function routeAfterAuth() {
     //   - no currentUser  → show landing
     //   - currentUser, no profile → show onboarding
     //   - currentUser + profile  → enter practice (zen mode)
-    if (!currentUser) {
-      showLanding();
-    } else if (profile) {
-      enterPracticeMode();
-    } else {
-      showOnboarding("goal");
-    }
+    if (!currentUser) showLanding();
+    else if (profile) enterPracticeMode();
+    else showOnboarding("goal");
   }
 
   // ============================ TEXT SELECTION MENU (v2.5) ============================
@@ -3594,6 +3666,7 @@ document.addEventListener("DOMContentLoaded", () => {
       currentUser = null;
       localStorage.removeItem(STORAGE.current);
       try { sessionStorage.removeItem("typeflow_admin_key"); } catch {}
+      clearUserStateLocal();
       updateAuthUI();
       renderHistory();
       showLanding();  // v2.5
@@ -3683,10 +3756,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const u = $("login-username").value.trim();
     const p = $("login-password").value;
 
-    const loginSucceeded = (sessionUser, isAdmin) => {
+    const loginSucceeded = async (sessionUser, isAdmin) => {
       currentUser = sessionUser;
       localStorage.setItem(STORAGE.current, JSON.stringify(sessionUser));
       if (isAdmin) setAdminCreds(u, p);
+      // DB is the source of truth: pull this user's data; if they have none yet,
+      // seed it from whatever is in the local cache (first-time migration).
+      const hadRemote = await pullUserState();
+      if (!hadRemote) await pushUserState();
       updateAuthUI();
       renderHistory();
       closeAuthModal();
@@ -3699,15 +3776,17 @@ document.addEventListener("DOMContentLoaded", () => {
       try {
         const r = await supaRpc("app_login", { p_username: u, p_password: p });
         if (r && r.id) {
-          loginSucceeded({ id: r.id, username: r.username, email: r.email }, r.username.toLowerCase() === "admin");
+          await loginSucceeded({ id: r.id, username: r.username, email: r.email, token: r.token }, r.username.toLowerCase() === "admin");
           return;
         }
         // Not in the shared DB. A legacy local-only account may still verify here —
         // if so, migrate it into the shared DB (we have the plaintext at this moment).
         const localUser = usersDB.find(x => x.username.toLowerCase() === u.toLowerCase());
         if (localUser && await verifyPassword(p, localUser)) {
-          try { await supaRpc("app_signup", { p_username: localUser.username, p_email: localUser.email || "", p_password: p }); } catch {}
-          loginSucceeded(localUser, localUser.username.toLowerCase() === "admin");
+          let s = null;
+          try { s = await supaRpc("app_signup", { p_username: localUser.username, p_email: localUser.email || "", p_password: p }); } catch {}
+          const sess = (s && s.id) ? { id: s.id, username: s.username, email: s.email, token: s.token } : localUser;
+          await loginSucceeded(sess, localUser.username.toLowerCase() === "admin");
           return;
         }
         loginErr.textContent = "اسم المستخدم أو كلمة المرور غير صحيحة";
@@ -3723,7 +3802,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const user = usersDB.find(x => x.username.toLowerCase() === u.toLowerCase());
     const ok = user ? await verifyPassword(p, user) : false;
     if (ok) {
-      loginSucceeded(user, user.username.toLowerCase() === "admin");
+      await loginSucceeded(user, user.username.toLowerCase() === "admin");
     } else {
       loginErr.textContent = "اسم المستخدم أو كلمة المرور غير صحيحة";
       loginErr.style.display = "block";
@@ -3755,8 +3834,9 @@ document.addEventListener("DOMContentLoaded", () => {
           signupErr.style.display = "block";
           return;
         }
-        currentUser = { id: r.id, username: r.username, email: r.email };
+        currentUser = { id: r.id, username: r.username, email: r.email, token: r.token };
         localStorage.setItem(STORAGE.current, JSON.stringify(currentUser));
+        await pushUserState();   // seed remote state for the new account
         updateAuthUI();
         renderHistory();
         closeAuthModal();
