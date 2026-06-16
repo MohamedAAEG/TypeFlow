@@ -406,6 +406,8 @@ document.addEventListener("DOMContentLoaded", () => {
   let timeElapsed = 0;
   let totalInput = 0;
   let correctChars = 0;
+  let lenientCursor = 0;       // lenient mode: index of the next target char to type
+  let _prevTypedCorrect = 0;   // correctChars after the previous keystroke (per-key feedback)
   let errorCharsMap = {};
   let errorWordsMap = {};
   let currentRepetition = 1;   // 1-indexed within profile.repetitions
@@ -2324,6 +2326,12 @@ document.addEventListener("DOMContentLoaded", () => {
       refreshAssistVisibility();
       if (e.target.checked) initLiveAssist();
     });
+    $("lenient-typing")?.addEventListener("change", (e) => {
+      if (!profile) return;
+      profile.lenientTyping = e.target.checked;
+      localStorage.setItem(STORAGE.profile, JSON.stringify(profile));
+      repaintTyping();  // reflect the new matching mode on the current text immediately
+    });
 
     // Data backup (export / import)
     $("export-data-btn")?.addEventListener("click", exportData);
@@ -3163,6 +3171,8 @@ document.addEventListener("DOMContentLoaded", () => {
     timeElapsed = 0;
     totalInput = 0;
     correctChars = 0;
+    lenientCursor = 0;
+    _prevTypedCorrect = 0;
     errorCharsMap = {};
     errorWordsMap = {};
 
@@ -3267,6 +3277,62 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // ---- Lenient matching (toggle in display settings): ignore letter case + punctuation ----
+  // (lenientCursor + _prevTypedCorrect are declared with the other engine-state vars above.)
+  const TYPING_PUNCT = /[.,!?;:'"“”‘’`´^~*()\[\]{}<>\/\\|@#$%&_+=\-–—…«»]/;
+  function isTypingPunct(ch) { return ch != null && TYPING_PUNCT.test(ch); }
+  function lenientTypingOn() { return !!(profile && profile.lenientTyping); }
+  function lenientCharEq(a, b) { return a === b || (a != null && b != null && a.toLowerCase() === b.toLowerCase()); }
+
+  // Strict recolor — byte-for-byte the original behavior. Returns whether the paragraph is done.
+  function recolorStrict(newTyped, spans) {
+    correctChars = 0;
+    spans.forEach((span, idx) => {
+      span.classList.remove("active", "blink");
+      if (idx < newTyped.length) {
+        if (newTyped[idx] === currentText[idx]) { span.className = "char correct"; correctChars++; }
+        else { span.className = "char incorrect"; }
+      } else {
+        span.className = "char untyped";
+      }
+      if (idx === newTyped.length) span.classList.add("active", "blink");
+    });
+    return newTyped.length >= currentText.length;
+  }
+
+  // Lenient recolor — greedy alignment: case-insensitive letters, and target punctuation may be
+  // typed OR skipped (extra typed punctuation is ignored). Sets correctChars + lenientCursor.
+  function recolorLenient(newTyped, spans) {
+    const target = currentText;
+    const status = new Array(target.length).fill("untyped");
+    let ti = 0, yi = 0, correct = 0;
+    while (ti < target.length && yi < newTyped.length) {
+      if (lenientCharEq(newTyped[yi], target[ti])) { status[ti] = "correct"; correct++; ti++; yi++; }
+      else if (isTypingPunct(target[ti])) { status[ti] = "correct"; correct++; ti++; }   // skip target punctuation
+      else if (isTypingPunct(newTyped[yi])) { yi++; }                                      // ignore extra typed punctuation
+      else { status[ti] = "incorrect"; ti++; yi++; }
+    }
+    let cursor = ti;
+    if (yi >= newTyped.length) {  // auto-pass trailing target punctuation once the letters are done
+      while (cursor < target.length && isTypingPunct(target[cursor])) { status[cursor] = "correct"; correct++; cursor++; }
+    }
+    spans.forEach((span, idx) => {
+      span.classList.remove("active", "blink");
+      span.className = "char " + (status[idx] === "correct" ? "correct" : status[idx] === "incorrect" ? "incorrect" : "untyped");
+      if (idx === cursor) span.classList.add("active", "blink");
+    });
+    correctChars = correct;
+    lenientCursor = cursor;
+    return cursor >= target.length;
+  }
+
+  // Repaint current state without per-key bookkeeping (used when toggling the setting live).
+  function repaintTyping() {
+    const spans = textBox.querySelectorAll(".char");
+    if (!spans.length) return;
+    if (lenientTypingOn()) recolorLenient(typedText, spans); else recolorStrict(typedText, spans);
+  }
+
   function handleTypingInput() {
     if (isCompleted) return;
 
@@ -3278,46 +3344,46 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const newTyped = typingInput.value;
     const spans = textBox.querySelectorAll(".char");
+    const grew = newTyped.length > typedText.length;
+    const lenient = lenientTypingOn();
 
-    if (newTyped.length > typedText.length) {
+    // Recolor first (sets correctChars and, in lenient mode, lenientCursor).
+    const done = lenient ? recolorLenient(newTyped, spans) : recolorStrict(newTyped, spans);
+
+    // Per-keystroke sound + error tally.
+    if (grew) {
+      totalInput++;
       const i = newTyped.length - 1;
       const added = newTyped[i];
-      const target = currentText[i];
-      totalInput++;
-      if (added === target) {
+      let ok, tgtIdx;
+      if (lenient) {
+        ok = isTypingPunct(added) || correctChars > _prevTypedCorrect;
+        tgtIdx = Math.min(lenientCursor, currentText.length - 1);
+      } else {
+        ok = added === currentText[i];
+        tgtIdx = i;
+      }
+      if (ok) {
         typingAudio.playKeySound(false);
       } else {
         typingAudio.playKeySound(true);
-        errorCharsMap[target] = (errorCharsMap[target] || 0) + 1;
-        // Identify the word containing this mistake
-        const word = extractWordAt(currentText, i);
-        if (word) errorWordsMap[word] = (errorWordsMap[word] || 0) + 1;
+        const tgt = currentText[tgtIdx];
+        if (tgt != null) {
+          errorCharsMap[tgt] = (errorCharsMap[tgt] || 0) + 1;
+          const word = extractWordAt(currentText, tgtIdx);
+          if (word) errorWordsMap[word] = (errorWordsMap[word] || 0) + 1;
+        }
       }
     }
+    _prevTypedCorrect = correctChars;
     typedText = newTyped;
     updateLiveAssist();
 
-    correctChars = 0;
-    spans.forEach((span, idx) => {
-      span.classList.remove("active", "blink");
-      if (idx < newTyped.length) {
-        if (newTyped[idx] === currentText[idx]) {
-          span.className = "char correct";
-          correctChars++;
-        } else {
-          span.className = "char incorrect";
-        }
-      } else {
-        span.className = "char untyped";
-      }
-      if (idx === newTyped.length) span.classList.add("active", "blink");
-    });
-
-    const progressPct = Math.min((newTyped.length / currentText.length) * 100, 100);
-    progressBar.style.width = `${progressPct}%`;
+    const filled = lenient ? lenientCursor : newTyped.length;
+    progressBar.style.width = `${Math.min((filled / (currentText.length || 1)) * 100, 100)}%`;
     computeMetrics();
 
-    if (newTyped.length >= currentText.length) completeParagraph();
+    if (done) completeParagraph();
   }
 
   function extractWordAt(text, idx) {
@@ -3507,6 +3573,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const ratePct = Math.round(((profile && profile.speechRate) || 0.95) * 100);
     const r = $("assist-rate");         if (r) r.value = ratePct;
     const rv = $("assist-rate-val");    if (rv) rv.textContent = ratePct + "%";
+    const len = $("lenient-typing");    if (len) len.checked = !!(profile && profile.lenientTyping);
   }
 
   function updateTimer() {
@@ -3520,7 +3587,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const minutes = Math.max(timeElapsed, 1) / 60;
     const wpm = Math.round((correctChars / 5) / minutes);
     wpmVal.textContent = wpm;
-    const acc = totalInput > 0 ? Math.round((correctChars / totalInput) * 100) : 100;
+    const acc = totalInput > 0 ? Math.min(100, Math.round((correctChars / totalInput) * 100)) : 100;
     accVal.textContent = `${acc}%`;
   }
 
@@ -3530,7 +3597,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const minutes = Math.max(timeElapsed, 1) / 60;
     const wpm = Math.round((correctChars / 5) / minutes);
-    const acc = totalInput > 0 ? Math.round((correctChars / totalInput) * 100) : 100;
+    const acc = totalInput > 0 ? Math.min(100, Math.round((correctChars / totalInput) * 100)) : 100;
 
     sumWpm.textContent = wpm;
     sumAcc.textContent = `${acc}%`;
