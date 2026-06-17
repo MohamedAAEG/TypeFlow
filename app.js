@@ -419,6 +419,14 @@ document.addEventListener("DOMContentLoaded", () => {
   let idleBadgeEl = null;
   let manuallyPaused = false;
 
+  // Session-level tracking (reset on new workspace load)
+  let sessionStartWallTime = null;
+  let sessionWallInterval = null;
+  let sessionTypingTime = 0;    // accumulated actual typing time (excludes pauses)
+  let sessionCorrectChars = 0;
+  let sessionTotalInput = 0;
+  let sessionParasCompleted = 0;
+
   // ============================ DOM ============================
   const $ = (id) => document.getElementById(id);
 
@@ -2929,6 +2937,7 @@ document.addEventListener("DOMContentLoaded", () => {
         currentParagraphs = ["لا يوجد محتوى متاح بهذه الإعدادات. غيّر الأحجام أو اختر مساحة عمل أخرى."];
       }
     }
+    resetSession();
   }
 
   function renderContextBar() {
@@ -3340,6 +3349,18 @@ document.addEventListener("DOMContentLoaded", () => {
       isStarted = true;
       startTime = Date.now();
       timerInterval = setInterval(updateTimer, 500);
+      // Start session wall clock on first ever keystroke of this session
+      if (!sessionStartWallTime) {
+        sessionStartWallTime = Date.now();
+        const chip = $("session-timer-chip");
+        if (chip) chip.style.display = "inline-flex";
+        sessionWallInterval = setInterval(() => {
+          const c = $("session-timer-chip");
+          if (c && sessionStartWallTime) {
+            c.textContent = `⏱ ${fmtTime(Math.floor((Date.now() - sessionStartWallTime) / 1000))}`;
+          }
+        }, 1000);
+      }
     }
 
     const newTyped = typingInput.value;
@@ -3637,6 +3658,13 @@ document.addEventListener("DOMContentLoaded", () => {
     saveAttempt(wpm, acc, timeElapsed);
     markProgress(currentIndex);
 
+    // Accumulate session stats
+    sessionTypingTime += timeElapsed;
+    sessionCorrectChars += correctChars;
+    sessionTotalInput += totalInput;
+    sessionParasCompleted++;
+    updateSessionDisplay();
+
     // Compute and show avg
     const all = historyData.filter(h => sameContext(h));
     if (all.length > 0) {
@@ -3658,6 +3686,49 @@ document.addEventListener("DOMContentLoaded", () => {
         summary.style.display = "flex";
       }, 350);
     }
+  }
+
+  function fmtTime(sec) {
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return m > 0 ? `${m}د ${String(s).padStart(2, "0")}ث` : `${s}ث`;
+  }
+
+  function resetSession() {
+    sessionStartWallTime = null;
+    sessionTypingTime = 0;
+    sessionCorrectChars = 0;
+    sessionTotalInput = 0;
+    sessionParasCompleted = 0;
+    clearInterval(sessionWallInterval);
+    sessionWallInterval = null;
+    const chip = $("session-timer-chip");
+    if (chip) chip.style.display = "none";
+    const sec = $("session-stats-section");
+    if (sec) sec.style.display = "none";
+  }
+
+  function updateSessionDisplay() {
+    const sec = $("session-stats-section");
+    if (!sec || sessionParasCompleted === 0) return;
+    sec.style.display = "block";
+
+    const wallSec = sessionStartWallTime
+      ? Math.floor((Date.now() - sessionStartWallTime) / 1000)
+      : sessionTypingTime;
+    const wpm = sessionTypingTime > 0
+      ? Math.round((sessionCorrectChars / 5) / (sessionTypingTime / 60))
+      : 0;
+
+    const wpmEl = $("sess-wpm");
+    const typingEl = $("sess-typing-time");
+    const wallEl = $("sess-wall-time");
+    const parasEl = $("sess-paras");
+
+    if (wpmEl) wpmEl.textContent = wpm;
+    if (typingEl) typingEl.textContent = fmtTime(sessionTypingTime);
+    if (wallEl) wallEl.textContent = fmtTime(wallSec);
+    if (parasEl) parasEl.textContent = `${sessionParasCompleted} / ${currentParagraphs.length}`;
   }
 
   function sameContext(h) {

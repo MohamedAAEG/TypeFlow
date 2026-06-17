@@ -270,6 +270,7 @@
         <div class="context-controls">
           <span class="paragraph-counter" id="paragraph-counter">1 / 1</span>
           <span class="paragraph-counter rep-counter" id="rep-counter" style="display: none;">🔁 1/1</span>
+          <span class="session-timer-chip" id="session-timer-chip" style="display:none;" title="مدة الجلسة الكلية">⏱ 0ث</span>
           <button type="button" id="toggle-settings-btn" class="btn-secondary btn-sm" title="إعدادات عرض النصوص">
             <svg class="icon icon-sm"><use href="#i-settings"/></svg> إعدادات العرض
           </button>
@@ -418,8 +419,14 @@
         </div>
 
         <!-- Progress through the workspace's set of paragraphs -->
-        <div class="para-progress-container" id="para-progress-container" title="تقدّمك في نصوص هذه المساحة">
-          <div class="para-progress-bar" id="para-progress-bar"></div>
+        <div class="para-progress-wrapper">
+          <div class="para-progress-label-row">
+            <span class="ppl-file">الملف كله</span>
+            <span class="ppl-text">النص الحالي ↑</span>
+          </div>
+          <div class="para-progress-container" id="para-progress-container" title="تقدّمك في نصوص هذه المساحة">
+            <div class="para-progress-bar" id="para-progress-bar"></div>
+          </div>
         </div>
       </main>
 
@@ -446,6 +453,29 @@
           <div class="summary-metric">
             <div class="metric-val" id="summary-avg-wpm">0</div>
             <div class="metric-label">متوسطك الكلي</div>
+          </div>
+        </div>
+
+        <!-- Session stats (visible after first paragraph completes) -->
+        <div class="session-stats-section" id="session-stats-section" style="display:none;">
+          <h3 class="session-stats-heading">📊 إحصائيات الجلسة</h3>
+          <div class="session-stats-grid">
+            <div class="session-stat">
+              <div class="session-stat-val" id="sess-wpm">—</div>
+              <div class="session-stat-label">WPM الجلسة</div>
+            </div>
+            <div class="session-stat">
+              <div class="session-stat-val" id="sess-typing-time">—</div>
+              <div class="session-stat-label">وقت الكتابة الفعلي</div>
+            </div>
+            <div class="session-stat">
+              <div class="session-stat-val" id="sess-wall-time">—</div>
+              <div class="session-stat-label">وقت الجلسة الكلي</div>
+            </div>
+            <div class="session-stat">
+              <div class="session-stat-val" id="sess-paras">—</div>
+              <div class="session-stat-label">نصوص مكتملة</div>
+            </div>
           </div>
         </div>
 
