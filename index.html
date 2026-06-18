@@ -375,6 +375,15 @@
       <main class="typing-workbench" id="typing-workbench" tabindex="0" aria-label="Typing Practice Area">
         <input type="text" id="typing-input" class="typing-input" autocomplete="off" autofocus>
         
+        <!-- Session Paused Overlay -->
+        <div id="session-paused-overlay" class="session-paused-overlay" style="display: none;">
+          <div class="session-paused-content">
+            <h3 style="font-size: 1.5rem; margin-bottom: 0.5rem; color: var(--warning-color);">⏸️ الجلسة موقوفة مؤقتاً</h3>
+            <p style="color: var(--text-muted); margin-bottom: 1.5rem; font-size: 0.95rem;">تم إيقاف مؤقت الجلسة وعداد الكتابة. انقر على الزر أدناه للاستئناف.</p>
+            <button type="button" id="sess-overlay-resume-btn" class="btn-primary" style="padding: 0.6rem 2rem; font-size: 1.05rem; font-weight: 600;">▶️ استئناف الجلسة</button>
+          </div>
+        </div>
+        
         <!-- Session HUD (visible only when session is active) -->
         <div class="session-hud" id="session-hud" style="display: none;">
           <div class="session-hud-title">🟢 الجلسة نشطة</div>
@@ -396,6 +405,7 @@
               <span class="session-hud-label">الوقت الكلي</span>
             </div>
           </div>
+          <button type="button" id="sess-hud-pause-btn" class="btn-secondary btn-sm" style="background-color: var(--warning-color); color: #fff; border: none; border-radius: 4px; padding: 0.35rem 0.75rem; font-size: 0.8rem; font-weight: 600; cursor: pointer; margin-left: 0.5rem;" title="إيقاف الجلسة مؤقتاً">⏸️ إيقاف مؤقت</button>
           <button type="button" id="sess-hud-end-btn" class="btn-danger btn-sm" style="background-color: var(--error-color); color: #fff; border: none; border-radius: 4px; padding: 0.35rem 0.75rem; font-size: 0.8rem; font-weight: 600; cursor: pointer;" title="إنهاء الجلسة والرجوع للملخص">🛑 إنهاء</button>
         </div>
 
@@ -1114,8 +1124,9 @@
               </div>
             </div>
 
-            <div style="display: flex; gap: 1rem;">
+            <div style="display: flex; gap: 1rem; align-items: center;">
               <button type="button" id="resume-session-btn" class="btn-primary" style="padding: 0.5rem 1.5rem;">✍️ استئناف الكتابة</button>
+              <button type="button" id="session-active-pause-btn" class="btn-secondary" style="padding: 0.5rem 1.5rem; background-color: var(--warning-color); color: #fff; border: none; border-radius: 4px; cursor: pointer;">⏸️ إيقاف مؤقت</button>
               <button type="button" id="end-session-btn" class="btn-danger" style="padding: 0.5rem 1.5rem; background-color: var(--error-color); color: #fff; border: none; border-radius: 4px; cursor: pointer;">🛑 إنهاء الجلسة وعرض التقرير</button>
             </div>
           </div>
@@ -1147,6 +1158,14 @@
             </div>
           </div>
           <button type="button" id="close-report-btn" class="btn-secondary" style="padding: 0.5rem 1.5rem;">✕ إغلاق التقرير</button>
+        </div>
+
+        <!-- Session History Card -->
+        <div class="profile-card" id="session-history-card" style="margin-top: 1.5rem;">
+          <h3 class="profile-card-title">📜 سجل الجلسات السابقة / Sessions History</h3>
+          <div id="session-history-list" style="margin-top: 1rem;">
+            <!-- Populated by JS -->
+          </div>
         </div>
       </div>
 

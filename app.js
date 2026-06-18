@@ -18,7 +18,8 @@ document.addEventListener("DOMContentLoaded", () => {
                                              // { username: { "reason:level:size": [text, ...] } }
     adminEdits: "typeflow_admin_edits",   // admin overrides for default content (CRUD)
                                              // { reasons: [...], content: { "reason:level:size": [texts] } }
-    grammarLevels: "typeflow_grammar_levels" // grammar quests: { questId: { completed, bestScore, lastLevel } }
+    grammarLevels: "typeflow_grammar_levels", // grammar quests: { questId: { completed, bestScore, lastLevel } }
+    sessionHistory: "typeflow_session_history"
   };
 
   // ============================ SUPABASE (shared user store) ============================
@@ -429,6 +430,9 @@ document.addEventListener("DOMContentLoaded", () => {
   let isSessionActive = false;
   let sessionFolderId = null;
   let sessionTotalWords = 0;
+  let isSessionPaused = false;
+  let sessionAccumulatedWallTime = 0;
+  let sessionAttempts = [];
 
   // ============================ DOM ============================
   const $ = (id) => document.getElementById(id);
@@ -1984,6 +1988,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (tab === "performance") renderPerformanceTab();
     if (tab === "display") renderDisplayTab();
     if (tab === "learning") renderLearningTab();
+    if (tab === "sessions") renderSessionHistory();
   }
 
   // ============================ DISPLAY TAB ============================
@@ -2316,6 +2321,25 @@ document.addEventListener("DOMContentLoaded", () => {
     $("close-report-btn")?.addEventListener("click", () => {
       const card = $("session-report-card");
       if (card) card.style.display = "none";
+    });
+    $("sess-hud-pause-btn")?.addEventListener("click", () => {
+      toggleSessionPause();
+    });
+    $("session-active-pause-btn")?.addEventListener("click", () => {
+      toggleSessionPause();
+    });
+    $("sess-overlay-resume-btn")?.addEventListener("click", () => {
+      resumeSession();
+    });
+    $("session-history-list")?.addEventListener("click", (e) => {
+      const header = e.target.closest(".session-history-header");
+      if (!header) return;
+      const details = header.nextElementSibling;
+      if (!details) return;
+      const isOpen = details.style.display === "block";
+      details.style.display = isOpen ? "none" : "block";
+      const icon = header.querySelector(".collapse-icon");
+      if (icon) icon.textContent = isOpen ? "▼" : "▲";
     });
 
     // Live assist (pronunciation + translation)
@@ -3376,6 +3400,10 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function handleTypingInput() {
+    if (isSessionPaused) {
+      typingInput.value = "";
+      return;
+    }
     if (isCompleted) return;
 
     if (!isStarted && typingInput.value.length > 0) {
@@ -3703,6 +3731,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const paragraphWords = currentText.split(/\s+/).filter(w => w.length > 0).length;
     sessionTotalWords += paragraphWords;
     sessionParasCompleted++;
+    if (isSessionActive) {
+      sessionAttempts.push({
+        text: currentText,
+        wpm: wpm,
+        accuracy: acc,
+        time: timeElapsed
+      });
+    }
     updateSessionDisplay();
 
     // Compute and show avg
@@ -3742,6 +3778,9 @@ document.addEventListener("DOMContentLoaded", () => {
     sessionTotalInput = 0;
     sessionTotalWords = 0;
     sessionParasCompleted = 0;
+    isSessionPaused = false;
+    sessionAccumulatedWallTime = 0;
+    sessionAttempts = [];
     clearInterval(sessionWallInterval);
     sessionWallInterval = null;
     const chip = $("session-timer-chip");
@@ -3780,6 +3819,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function startSession(folderId) {
     isSessionActive = true;
+    isSessionPaused = false;
     sessionFolderId = folderId;
 
     if (folderId === "all") {
@@ -3797,6 +3837,10 @@ document.addEventListener("DOMContentLoaded", () => {
     sessionCorrectChars = 0;
     sessionTotalWords = 0;
     sessionParasCompleted = 0;
+    sessionAccumulatedWallTime = 0;
+    sessionAttempts = [];
+
+    hideSessionPausedOverlay();
 
     if (sessionWallInterval) clearInterval(sessionWallInterval);
     sessionWallInterval = setInterval(updateSessionHUD, 1000);
@@ -3815,9 +3859,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const hud = $("session-hud");
     if (hud) hud.style.display = "none";
 
-    const wallSec = sessionStartWallTime
-      ? Math.floor((Date.now() - sessionStartWallTime) / 1000)
-      : 0;
+    hideSessionPausedOverlay();
+
+    const wallSec = isSessionPaused
+      ? sessionAccumulatedWallTime
+      : (sessionStartWallTime ? Math.floor((Date.now() - sessionStartWallTime) / 1000) + sessionAccumulatedWallTime : sessionAccumulatedWallTime);
     const finalWpm = sessionTypingTime > 0
       ? Math.round((sessionCorrectChars / 5) / (sessionTypingTime / 60))
       : 0;
@@ -3841,7 +3887,34 @@ document.addEventListener("DOMContentLoaded", () => {
     if (setupView) setupView.style.display = "block";
     if (activeView) activeView.style.display = "none";
 
+    if (sessionParasCompleted > 0) {
+      const sessionItem = {
+        id: Date.now(),
+        username: currentUser ? currentUser.username : "guest",
+        date: new Date().toLocaleString("ar-EG", {
+          year: 'numeric', month: 'short', day: 'numeric',
+          hour: '2-digit', minute: '2-digit'
+        }),
+        folderName: getFolderName(sessionFolderId),
+        stats: {
+          avgWpm: finalWpm,
+          totalWords: sessionTotalWords,
+          totalChars: sessionCorrectChars,
+          typingTime: sessionTypingTime,
+          wallTime: wallSec,
+          parasCompleted: sessionParasCompleted
+        },
+        attempts: [...sessionAttempts]
+      };
+      const history = getSessionHistory();
+      history.unshift(sessionItem);
+      if (history.length > 50) history.pop();
+      saveSessionHistory(history);
+      renderSessionHistory();
+    }
+
     isSessionActive = false;
+    resetSession();
 
     openProfile();
     switchProfilePanel("sessions");
@@ -3852,9 +3925,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const hud = $("session-hud");
     if (!hud) return;
 
-    const wallSec = sessionStartWallTime
-      ? Math.floor((Date.now() - sessionStartWallTime) / 1000)
-      : 0;
+    const wallSec = isSessionPaused
+      ? sessionAccumulatedWallTime
+      : (sessionStartWallTime ? Math.floor((Date.now() - sessionStartWallTime) / 1000) + sessionAccumulatedWallTime : sessionAccumulatedWallTime);
     const wpm = sessionTypingTime > 0
       ? Math.round((sessionCorrectChars / 5) / (sessionTypingTime / 60))
       : 0;
@@ -3883,6 +3956,162 @@ document.addEventListener("DOMContentLoaded", () => {
     if (activeWordsChars) activeWordsChars.textContent = `${sessionTotalWords} ك / ${sessionCorrectChars} ح`;
     if (activeTyping) activeTyping.textContent = fmtTime(sessionTypingTime);
     if (activeWall) activeWall.textContent = fmtTime(wallSec);
+
+    updateSessionHUDDisplayState();
+  }
+
+  function toggleSessionPause() {
+    if (isSessionPaused) {
+      resumeSession();
+    } else {
+      pauseSession();
+    }
+  }
+
+  function pauseSession() {
+    if (!isSessionActive || isSessionPaused) return;
+    isSessionPaused = true;
+    if (sessionStartWallTime) {
+      sessionAccumulatedWallTime += Math.floor((Date.now() - sessionStartWallTime) / 1000);
+      sessionStartWallTime = null;
+    }
+    clearInterval(sessionWallInterval);
+    sessionWallInterval = null;
+
+    if (isStarted && !isCompleted && !manuallyPaused) {
+      togglePause();
+    }
+
+    showSessionPausedOverlay();
+    updateSessionHUDDisplayState();
+  }
+
+  function resumeSession() {
+    if (!isSessionActive || !isSessionPaused) return;
+    isSessionPaused = false;
+    sessionStartWallTime = Date.now();
+    sessionWallInterval = setInterval(updateSessionHUD, 1000);
+
+    hideSessionPausedOverlay();
+
+    if (isStarted && !isCompleted && manuallyPaused) {
+      togglePause();
+    }
+
+    updateSessionHUDDisplayState();
+    typingInput.focus();
+  }
+
+  function updateSessionHUDDisplayState() {
+    const hudPauseBtn = $("sess-hud-pause-btn");
+    const activePauseBtn = $("session-active-pause-btn");
+    const hudTitle = document.querySelector(".session-hud-title");
+    
+    if (isSessionPaused) {
+      if (hudPauseBtn) hudPauseBtn.textContent = "▶️ استئناف";
+      if (activePauseBtn) activePauseBtn.textContent = "▶️ استئناف الجلسة";
+      if (hudTitle) hudTitle.textContent = "🟡 الجلسة موقوفة";
+    } else {
+      if (hudPauseBtn) hudPauseBtn.textContent = "⏸️ إيقاف مؤقت";
+      if (activePauseBtn) activePauseBtn.textContent = "⏸️ إيقاف مؤقت";
+      if (hudTitle) hudTitle.textContent = "🟢 الجلسة نشطة";
+    }
+  }
+
+  function showSessionPausedOverlay() {
+    const overlay = $("session-paused-overlay");
+    if (overlay) overlay.style.display = "flex";
+  }
+
+  function hideSessionPausedOverlay() {
+    const overlay = $("session-paused-overlay");
+    if (overlay) overlay.style.display = "none";
+  }
+
+  function getFolderName(folderId) {
+    if (folderId === "all") return "المسار الافتراضي";
+    if (folderId === "learning") return "قائمة التعلم";
+    const userFolders = getUserFolders();
+    const folder = userFolders.find(f => f.id == folderId);
+    return folder ? (folder.icon ? `${folder.icon} ${folder.name}` : folder.name) : "مجلد مخصص";
+  }
+
+  function getSessionHistory() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE.sessionHistory) || "[]");
+    } catch {
+      return [];
+    }
+  }
+
+  function saveSessionHistory(history) {
+    localStorage.setItem(STORAGE.sessionHistory, JSON.stringify(history));
+  }
+
+  function renderSessionHistory() {
+    const listEl = $("session-history-list");
+    if (!listEl) return;
+
+    const target = currentUser ? currentUser.username : "guest";
+    const history = getSessionHistory().filter(s => (s.username || "guest") === target);
+
+    if (history.length === 0) {
+      listEl.innerHTML = `
+        <div class="focus-instruction" style="text-align: center; padding: 1.5rem; color: var(--text-muted); font-style: italic; border: 1px dashed var(--border-color); border-radius: 8px;">
+          لا توجد جلسات تدريبية مسجلة بعد. ابدأ أول جلسة لك الآن!
+        </div>
+      `;
+      return;
+    }
+
+    listEl.innerHTML = history.map(item => {
+      const attemptsHtml = item.attempts.map((att, idx) => `
+        <div class="session-history-attempt" style="padding: 0.6rem; background: var(--bg-color); border-radius: 6px; border: 1px solid var(--border-color); font-size: 0.85rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.3rem; border-bottom: 1px dashed var(--border-color); padding-bottom: 0.25rem;">
+            <span style="font-weight: 700; color: var(--accent);">النص #${idx + 1}</span>
+            <span style="color: var(--text-muted); font-size: 0.8rem;">
+              السرعة: <strong style="color: var(--text-color);">${att.wpm} WPM</strong> | 
+              الدقة: <strong style="color: var(--text-color);">${att.accuracy}%</strong> | 
+              الزمن: <strong style="color: var(--text-color);">${att.time}ث</strong>
+            </span>
+          </div>
+          <div dir="auto" style="font-family: var(--font-mono); color: var(--text-color); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.85rem;" title="${escapeHtml(att.text)}">
+            ${escapeHtml(att.text)}
+          </div>
+        </div>
+      `).join("");
+
+      return `
+        <div class="session-history-item" style="border: 1px solid var(--border-color); border-radius: 8px; margin-bottom: 0.75rem; overflow: hidden; background: var(--hover-bg);">
+          <div class="session-history-header" style="padding: 0.8rem 1rem; display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;">
+            <div style="display: flex; flex-direction: column; gap: 2px; text-align: right;">
+              <span style="font-weight: 700; font-size: 0.9rem; color: var(--accent);">📁 ${escapeHtml(item.folderName)}</span>
+              <span style="font-size: 0.75rem; color: var(--text-muted);">${item.date}</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 1rem; direction: rtl;">
+              <div style="font-size: 0.85rem; color: var(--text-color); text-align: left;">
+                <strong>${item.stats.avgWpm} WPM</strong> | 
+                <strong>${item.stats.totalWords} ك</strong> | 
+                <strong>${item.stats.parasCompleted} نصوص</strong>
+              </div>
+              <span class="collapse-icon" style="font-size: 0.8rem; color: var(--text-muted); transition: transform 0.2s;">▼</span>
+            </div>
+          </div>
+          <div class="session-history-details" style="padding: 1rem; border-top: 1px solid var(--border-color); background: var(--bg-color); display: none;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 0.5rem; margin-bottom: 1rem; background: var(--hover-bg); padding: 0.6rem; border-radius: 6px; font-size: 0.8rem; text-align: center; border: 1px solid var(--border-color);">
+              <div>كتابة فعلية: <strong style="color: var(--accent);">${fmtTime(item.stats.typingTime)}</strong></div>
+              <div>الوقت الكلي: <strong style="color: var(--accent);">${fmtTime(item.stats.wallTime)}</strong></div>
+              <div>الحروف: <strong style="color: var(--accent);">${item.stats.totalChars}</strong></div>
+              <div>المعدل: <strong style="color: var(--accent);">${Math.round(item.stats.totalChars / Math.max(item.stats.typingTime, 1))} ح/ث</strong></div>
+            </div>
+            <div style="font-weight: 700; font-size: 0.8rem; margin-bottom: 0.5rem; color: var(--text-muted); border-bottom: 1px solid var(--border-color); padding-bottom: 0.25rem;">النصوص المكتوبة:</div>
+            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+              ${attemptsHtml}
+            </div>
+          </div>
+        </div>
+      `;
+    }).join("");
   }
 
   function sameContext(h) {

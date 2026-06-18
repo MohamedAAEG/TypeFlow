@@ -3674,3 +3674,77 @@ body.zen-mode .para-progress-container {
   background-color: transparent !important;
 }
 
+/* ====================================================================
+   SESSION PAUSE OVERLAY & HISTORY LOG STYLES
+   ==================================================================== */
+.session-paused-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(20, 22, 26, 0.7);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 95;
+  border-radius: 12px;
+}
+
+body.dark-mode .session-paused-overlay {
+  background: rgba(20, 22, 26, 0.85);
+}
+
+.session-paused-content {
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+  padding: 2.2rem;
+  border-radius: 12px;
+  text-align: center;
+  box-shadow: var(--e-lg);
+  max-width: 380px;
+  width: 90%;
+  animation: panel-fade-in var(--dur-normal) var(--ease-out);
+}
+
+.session-history-item {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  margin-bottom: 0.75rem;
+  overflow: hidden;
+  background: var(--hover-bg);
+  transition: border-color var(--transition-speed);
+}
+
+.session-history-item:hover {
+  border-color: var(--accent);
+}
+
+.session-history-header {
+  padding: 0.8rem 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+}
+
+.session-history-details {
+  padding: 1rem;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-color);
+  animation: panel-fade-in 0.2s ease-out;
+}
+
+.session-history-attempt {
+  margin-bottom: 0.5rem;
+  transition: transform var(--transition-speed);
+}
+
+.session-history-attempt:hover {
+  transform: translateX(-2px);
+}
+
+
