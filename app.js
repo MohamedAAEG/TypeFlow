@@ -55,7 +55,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const USER_STATE_KEYS = [
     STORAGE.profile, STORAGE.progress, STORAGE.history,
     "typeflow_learning_list", STORAGE.userCtnt, STORAGE.overlay,
-    STORAGE.grammarLevels, "typeflow_appearance"
+    STORAGE.grammarLevels, "typeflow_appearance", STORAGE.sessionHistory
   ];
   const _origSetItem = localStorage.setItem.bind(localStorage);
   let _stateSyncTimer = null;
@@ -433,6 +433,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let isSessionPaused = false;
   let sessionAccumulatedWallTime = 0;
   let sessionAttempts = [];
+  let sessionPromptedWorkspaceKey = null;
 
   // ============================ DOM ============================
   const $ = (id) => document.getElementById(id);
@@ -2140,7 +2141,7 @@ document.addEventListener("DOMContentLoaded", () => {
           const ctx = it.context || {};
           const trackName = ctx.goal === "english"
             ? (getReasons().find(r => r.id === ctx.reason)?.name_ar || "إنجليزي")
-            : (ctx.goal === "typing" ? "كتابة" : "—");
+            : (ctx.goal === "typing" ? "كتابة" : (ctx.goal === "session" ? `⏱️ جلسة (${ctx.folderName || "—"})` : "—"));
           const sz = SIZE_OPTIONS.find(s => s.id === ctx.size)?.name_ar || "—";
           const accClass = it.accuracy >= 95 ? "accuracy-high" : "";
           const tr = document.createElement("tr");
@@ -2340,6 +2341,17 @@ document.addEventListener("DOMContentLoaded", () => {
       details.style.display = isOpen ? "none" : "block";
       const icon = header.querySelector(".collapse-icon");
       if (icon) icon.textContent = isOpen ? "▼" : "▲";
+    });
+    $("session-prompt-yes-btn")?.addEventListener("click", () => {
+      sessionPromptedWorkspaceKey = getWorkspaceKey();
+      hideSessionPromptModal();
+      startSession(getActiveFolderId());
+    });
+    $("session-prompt-no-btn")?.addEventListener("click", () => {
+      sessionPromptedWorkspaceKey = getWorkspaceKey();
+      hideSessionPromptModal();
+      manuallyPaused = false;
+      typingInput.focus();
     });
 
     // Live assist (pronunciation + translation)
@@ -2985,6 +2997,12 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
     resetSession();
+    if (profile && !isSessionActive) {
+      const currentKey = getWorkspaceKey();
+      if (currentKey !== sessionPromptedWorkspaceKey) {
+        showSessionPromptModal();
+      }
+    }
   }
 
   function renderContextBar() {
@@ -3911,9 +3929,36 @@ document.addEventListener("DOMContentLoaded", () => {
       if (history.length > 50) history.pop();
       saveSessionHistory(history);
       renderSessionHistory();
+
+      // Save overall session summary to general history
+      const sessionAcc = sessionTotalInput > 0 ? Math.min(100, Math.round((sessionCorrectChars / sessionTotalInput) * 100)) : 100;
+      const sessionSummaryAttempt = {
+        username: currentUser ? currentUser.username : "guest",
+        ts: Date.now(),
+        date: new Date().toLocaleString("ar-EG", {
+          year: 'numeric', month: 'short', day: 'numeric',
+          hour: '2-digit', minute: '2-digit'
+        }),
+        context: {
+          goal: "session",
+          folderName: getFolderName(sessionFolderId),
+          size: "—",
+          paragraphIndex: 0
+        },
+        wpm: finalWpm,
+        accuracy: sessionAcc,
+        time: wallSec,
+        errorChars: {},
+        errorWords: {}
+      };
+      historyData.unshift(sessionSummaryAttempt);
+      if (historyData.length > 200) historyData.pop();
+      localStorage.setItem(STORAGE.history, JSON.stringify(historyData));
+      renderHistory();
     }
 
     isSessionActive = false;
+    sessionPromptedWorkspaceKey = null;
     resetSession();
 
     openProfile();
@@ -4114,6 +4159,44 @@ document.addEventListener("DOMContentLoaded", () => {
     }).join("");
   }
 
+  function getWorkspaceKey() {
+    if (!profile) return "";
+    const ws = profile.workspace || { type: "default" };
+    if (ws.type === "default") {
+      return `default:${ws.reason || "all"}:${ws.level || "all"}`;
+    }
+    if (ws.type === "learning") {
+      return `learning`;
+    }
+    if (ws.type === "typing") {
+      return `typing:${ws.lang || "en"}`;
+    }
+    return `user:${ws.folderId || "all"}`;
+  }
+
+  function getActiveFolderId() {
+    if (!profile) return "all";
+    const ws = profile.workspace || { type: "default" };
+    if (ws.type === "default") return "all";
+    if (ws.type === "learning") return "learning";
+    if (ws.type === "typing") return "all";
+    return ws.folderId || "all";
+  }
+
+  function showSessionPromptModal() {
+    const modal = $("session-prompt-modal");
+    if (modal) {
+      modal.style.display = "flex";
+      manuallyPaused = true;
+      if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+    }
+  }
+
+  function hideSessionPromptModal() {
+    const modal = $("session-prompt-modal");
+    if (modal) modal.style.display = "none";
+  }
+
   function sameContext(h) {
     if (!h.context) return false;
     if (profile.goal === "english") {
@@ -4164,7 +4247,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const ctx = it.context || {};
       const trackName = ctx.goal === "english"
         ? (REASONS.find(r => r.id === ctx.reason)?.name_ar || "إنجليزي")
-        : "تعلم الكتابة";
+        : (ctx.goal === "session" ? `⏱️ جلسة (${ctx.folderName || "—"})` : "تعلم الكتابة");
       const lvl = ctx.level || "—";
       const size = SIZE_OPTIONS.find(s => s.id === ctx.size)?.name_ar || ctx.size || "—";
       const accClass = it.accuracy >= 95 ? "accuracy-high" : "";
@@ -4532,7 +4615,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const avgAcc = attempts.length ? Math.round(attempts.reduce((s, h) => s + h.accuracy, 0) / attempts.length) : 0;
       const trackName = lastCtx.goal === "english"
         ? (REASONS.find(r => r.id === lastCtx.reason)?.name_ar || "إنجليزي")
-        : lastCtx.goal === "typing" ? "كتابة" : "—";
+        : (lastCtx.goal === "typing" ? "كتابة" : (lastCtx.goal === "session" ? `⏱️ جلسة (${lastCtx.folderName || "—"})` : "—"));
       const isAdmin = u.username.toLowerCase() === "admin";
       const tr = document.createElement("tr");
       tr.innerHTML = `

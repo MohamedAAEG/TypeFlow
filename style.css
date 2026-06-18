@@ -3638,9 +3638,6 @@ input[type="text"].input-minimal:focus {
 }
 
 /* Zen mode overrides for sessions and progress bars */
-body.zen-mode .session-hud {
-  display: none !important;
-}
 
 body.zen-mode .typing-progress-label-row,
 body.zen-mode .para-progress-label-row {

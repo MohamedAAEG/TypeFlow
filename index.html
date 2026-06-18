@@ -1470,6 +1470,20 @@
       </div>
     </div>
 
+    <!-- Session Prompt Modal -->
+    <div class="modal-overlay" id="session-prompt-modal" style="display: none; z-index: 150;">
+      <div class="auth-card" style="max-width: 450px; text-align: center; padding: 2rem; display: flex; flex-direction: column; gap: 1rem;">
+        <h3 style="font-size: 1.5rem; font-weight: 700; color: var(--accent); margin: 0;">⏱️ بدء تدريب جديد</h3>
+        <p style="color: var(--text-muted); font-size: 0.95rem; line-height: 1.6; margin: 0 0 0.5rem 0;">
+          لقد اخترت مسار عمل جديد. هل ترغب في بدء **جلسة تدريبية متكاملة** (لقياس سرعتك التراكمية ووقتك الكلي) أم **التدريب العادي** فقط؟
+        </p>
+        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+          <button type="button" id="session-prompt-yes-btn" class="btn-primary" style="padding: 0.75rem; font-size: 1rem; font-weight: 600; cursor: pointer;">🚀 نعم، ابدأ جلسة تدريبية</button>
+          <button type="button" id="session-prompt-no-btn" class="btn-secondary" style="padding: 0.75rem; font-size: 1rem; font-weight: 600; cursor: pointer; border: 1px solid var(--border-color); background: var(--hover-bg);">✍️ تدريب عادي فقط</button>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <script src="english-data.js"></script>
