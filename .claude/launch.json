@@ -1,0 +1,15 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "typeflow-gh",
+      "runtimeExecutable": "powershell",
+      "runtimeArgs": [
+        "-NoProfile",
+        "-Command",
+        "$l=[System.Net.HttpListener]::new(); $l.Prefixes.Add('http://localhost:8766/'); $l.Start(); Write-Host 'Listening on http://localhost:8766/'; while($l.IsListening){ $c=$l.GetContext(); $p=$c.Request.Url.LocalPath.TrimStart('/'); if($p -eq ''){$p='index.html'}; $f=Join-Path 'C:\\Users\\moham\\Documents\\GitHub\\TypeFlow' $p; if(Test-Path $f){ $b=[IO.File]::ReadAllBytes($f); $ext=[IO.Path]::GetExtension($f); $ct=switch($ext){'.html'{'text/html; charset=utf-8'};'.css'{'text/css; charset=utf-8'};'.js'{'application/javascript; charset=utf-8'};default{'application/octet-stream'}}; $c.Response.ContentType=$ct; $c.Response.OutputStream.Write($b,0,$b.Length) } else { $c.Response.StatusCode=404 }; $c.Response.Close() }"
+      ],
+      "port": 8766
+    }
+  ]
+}

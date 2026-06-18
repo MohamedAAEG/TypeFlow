@@ -426,6 +426,9 @@ document.addEventListener("DOMContentLoaded", () => {
   let sessionCorrectChars = 0;
   let sessionTotalInput = 0;
   let sessionParasCompleted = 0;
+  let isSessionActive = false;
+  let sessionFolderId = null;
+  let sessionTotalWords = 0;
 
   // ============================ DOM ============================
   const $ = (id) => document.getElementById(id);
@@ -1964,7 +1967,8 @@ document.addEventListener("DOMContentLoaded", () => {
     texts:       ["texts"],
     display:     ["display"],
     performance: ["performance"],
-    learning:    ["learning"]
+    learning:    ["learning"],
+    sessions:    ["sessions"]
   };
 
   function switchProfilePanel(tab) {
@@ -2293,6 +2297,25 @@ document.addEventListener("DOMContentLoaded", () => {
     // Sidebar tabs in profile (v2.5)
     document.querySelectorAll(".profile-sidebar-tab").forEach(btn => {
       btn.addEventListener("click", () => switchProfilePanel(btn.dataset.panel));
+    });
+
+    // Sessions
+    $("start-session-btn")?.addEventListener("click", () => {
+      const select = $("session-folder-select");
+      if (select) startSession(select.value);
+    });
+    $("end-session-btn")?.addEventListener("click", () => {
+      endSession();
+    });
+    $("sess-hud-end-btn")?.addEventListener("click", () => {
+      endSession();
+    });
+    $("resume-session-btn")?.addEventListener("click", () => {
+      closeProfile();
+    });
+    $("close-report-btn")?.addEventListener("click", () => {
+      const card = $("session-report-card");
+      if (card) card.style.display = "none";
     });
 
     // Live assist (pronunciation + translation)
@@ -3134,9 +3157,15 @@ document.addEventListener("DOMContentLoaded", () => {
     // Workspace paragraph progress bar
     const paraFill = $("para-progress-bar");
     const paraCont = $("para-progress-container");
+    const paraProgressVal = $("para-progress-val");
     const totalParas = currentParagraphs.length;
-    if (paraFill) paraFill.style.width = totalParas > 0 ? `${((currentIndex + 1) / totalParas) * 100}%` : "0%";
-    if (paraCont) paraCont.title = `النص ${currentIndex + 1} من ${totalParas}`;
+    const completedCount = (progress[progressKey()] || []).length;
+    const percent = totalParas > 0 ? Math.min(Math.round((completedCount / totalParas) * 100), 100) : 0;
+    if (paraFill) paraFill.style.width = `${percent}%`;
+    if (paraProgressVal) {
+      paraProgressVal.textContent = `${completedCount} / ${totalParas} نصوص مكتملة (${percent}%)`;
+    }
+    if (paraCont) paraCont.title = `نصوص مكتملة: ${completedCount} من ${totalParas}`;
 
     // Repetition counter visible only when reps > 1
     const reps = parseInt(profile.repetitions, 10) || 1;
@@ -3189,6 +3218,10 @@ document.addEventListener("DOMContentLoaded", () => {
     accVal.textContent = "100%";
     timeVal.textContent = "0s";
     progressBar.style.width = "0%";
+    const typingProgressVal = $("typing-progress-val");
+    if (typingProgressVal) {
+      typingProgressVal.textContent = `0% (0 / ${currentText ? currentText.length : 0} حرف)`;
+    }
   }
 
   function resetParagraph() {
@@ -3401,7 +3434,12 @@ document.addEventListener("DOMContentLoaded", () => {
     updateLiveAssist();
 
     const filled = lenient ? lenientCursor : newTyped.length;
-    progressBar.style.width = `${Math.min((filled / (currentText.length || 1)) * 100, 100)}%`;
+    const typingProgressPercent = Math.min(Math.round((filled / (currentText.length || 1)) * 100), 100);
+    progressBar.style.width = `${typingProgressPercent}%`;
+    const typingProgressVal = $("typing-progress-val");
+    if (typingProgressVal) {
+      typingProgressVal.textContent = `${typingProgressPercent}% (${filled} / ${currentText.length} حرف)`;
+    }
     computeMetrics();
 
     if (done) completeParagraph();
@@ -3662,6 +3700,8 @@ document.addEventListener("DOMContentLoaded", () => {
     sessionTypingTime += timeElapsed;
     sessionCorrectChars += correctChars;
     sessionTotalInput += totalInput;
+    const paragraphWords = currentText.split(/\s+/).filter(w => w.length > 0).length;
+    sessionTotalWords += paragraphWords;
     sessionParasCompleted++;
     updateSessionDisplay();
 
@@ -3695,10 +3735,12 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function resetSession() {
+    if (isSessionActive) return; // Do not clear active explicit session
     sessionStartWallTime = null;
     sessionTypingTime = 0;
     sessionCorrectChars = 0;
     sessionTotalInput = 0;
+    sessionTotalWords = 0;
     sessionParasCompleted = 0;
     clearInterval(sessionWallInterval);
     sessionWallInterval = null;
@@ -3709,6 +3751,11 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function updateSessionDisplay() {
+    // If explicit session is active, updateSessionHUD handles the displays
+    if (isSessionActive) {
+      updateSessionHUD();
+      return;
+    }
     const sec = $("session-stats-section");
     if (!sec || sessionParasCompleted === 0) return;
     sec.style.display = "block";
@@ -3729,6 +3776,113 @@ document.addEventListener("DOMContentLoaded", () => {
     if (typingEl) typingEl.textContent = fmtTime(sessionTypingTime);
     if (wallEl) wallEl.textContent = fmtTime(wallSec);
     if (parasEl) parasEl.textContent = `${sessionParasCompleted} / ${currentParagraphs.length}`;
+  }
+
+  function startSession(folderId) {
+    isSessionActive = true;
+    sessionFolderId = folderId;
+
+    if (folderId === "all") {
+      profile.workspace = { type: "default", reason: profile.reason || "jobs", level: profile.level || "A1" };
+    } else if (folderId === "learning") {
+      profile.workspace = { type: "learning" };
+    } else {
+      profile.workspace = { type: "user", folderId: folderId };
+    }
+    syncProfileLegacy();
+    localStorage.setItem(STORAGE.profile, JSON.stringify(profile));
+
+    sessionStartWallTime = Date.now();
+    sessionTypingTime = 0;
+    sessionCorrectChars = 0;
+    sessionTotalWords = 0;
+    sessionParasCompleted = 0;
+
+    if (sessionWallInterval) clearInterval(sessionWallInterval);
+    sessionWallInterval = setInterval(updateSessionHUD, 1000);
+
+    closeProfile(0);
+
+    const hud = $("session-hud");
+    if (hud) hud.style.display = "flex";
+    updateSessionHUD();
+  }
+
+  function endSession() {
+    if (sessionWallInterval) clearInterval(sessionWallInterval);
+    sessionWallInterval = null;
+
+    const hud = $("session-hud");
+    if (hud) hud.style.display = "none";
+
+    const wallSec = sessionStartWallTime
+      ? Math.floor((Date.now() - sessionStartWallTime) / 1000)
+      : 0;
+    const finalWpm = sessionTypingTime > 0
+      ? Math.round((sessionCorrectChars / 5) / (sessionTypingTime / 60))
+      : 0;
+
+    const rWpm = $("report-sess-wpm");
+    const rWordsChars = $("report-sess-words-chars");
+    const rTyping = $("report-sess-typing-time");
+    const rWall = $("report-sess-wall-time");
+    const rParas = $("report-sess-paras");
+    const reportCard = $("session-report-card");
+
+    if (rWpm) rWpm.textContent = finalWpm;
+    if (rWordsChars) rWordsChars.textContent = `${sessionTotalWords} ك / ${sessionCorrectChars} ح`;
+    if (rTyping) rTyping.textContent = fmtTime(sessionTypingTime);
+    if (rWall) rWall.textContent = fmtTime(wallSec);
+    if (rParas) rParas.textContent = sessionParasCompleted;
+    if (reportCard) reportCard.style.display = "block";
+
+    const setupView = $("session-setup-view");
+    const activeView = $("session-active-view");
+    if (setupView) setupView.style.display = "block";
+    if (activeView) activeView.style.display = "none";
+
+    isSessionActive = false;
+
+    openProfile();
+    switchProfilePanel("sessions");
+  }
+
+  function updateSessionHUD() {
+    if (!isSessionActive) return;
+    const hud = $("session-hud");
+    if (!hud) return;
+
+    const wallSec = sessionStartWallTime
+      ? Math.floor((Date.now() - sessionStartWallTime) / 1000)
+      : 0;
+    const wpm = sessionTypingTime > 0
+      ? Math.round((sessionCorrectChars / 5) / (sessionTypingTime / 60))
+      : 0;
+
+    const wpmEl = $("sess-hud-wpm");
+    const wordsCharsEl = $("sess-hud-words-chars");
+    const typingEl = $("sess-hud-typing-time");
+    const wallEl = $("sess-hud-wall-time");
+
+    if (wpmEl) wpmEl.textContent = wpm;
+    if (wordsCharsEl) wordsCharsEl.textContent = `${sessionTotalWords} ك / ${sessionCorrectChars} ح`;
+    if (typingEl) typingEl.textContent = fmtTime(sessionTypingTime);
+    if (wallEl) wallEl.textContent = fmtTime(wallSec);
+
+    const setupView = $("session-setup-view");
+    const activeView = $("session-active-view");
+    if (setupView) setupView.style.display = "none";
+    if (activeView) activeView.style.display = "block";
+
+    const activeWpm = $("active-sess-wpm");
+    const activeWordsChars = $("active-sess-words-chars");
+    const activeTyping = $("active-sess-typing-time");
+    const activeWall = $("active-sess-wall-time");
+
+    if (activeWpm) activeWpm.textContent = wpm;
+    if (activeWordsChars) activeWordsChars.textContent = `${sessionTotalWords} ك / ${sessionCorrectChars} ح`;
+    if (activeTyping) activeTyping.textContent = fmtTime(sessionTypingTime);
+    if (activeWall) activeWall.textContent = fmtTime(wallSec);
   }
 
   function sameContext(h) {
@@ -4190,7 +4344,11 @@ document.addEventListener("DOMContentLoaded", () => {
     profileSec.style.display = "flex";
     restartOnboardingBtn.style.display = "none";
     renderProfile();
-    switchProfilePanel("account");  // always start on the Account tab
+    if (isSessionActive) {
+      switchProfilePanel("sessions");
+    } else {
+      switchProfilePanel("account");
+    }
   }
 
   function closeProfile(forcedIndex) {
@@ -4296,6 +4454,19 @@ document.addEventListener("DOMContentLoaded", () => {
         `<option value="${f.id}">${f.icon} ${escapeHtml(f.name)}</option>`
       ).join("");
       folderSelect.value = folders.some(f => f.id === prev) || prev === "all" ? prev : "all";
+    }
+    // Session folder selector
+    const sessionFolderSelect = $("session-folder-select");
+    if (sessionFolderSelect) {
+      const prev = sessionFolderSelect.value || "all";
+      sessionFolderSelect.innerHTML = 
+        `<option value="all">📚 المسار الافتراضي الحالي</option>` +
+        `<option value="learning">📚 قائمة التعلم (${getMyLearningList().length})</option>` +
+        folders.map(f => {
+          const count = items.filter(i => (i.folderId || "default") === f.id).length;
+          return `<option value="${f.id}">${f.icon} ${escapeHtml(f.name)} (${count})</option>`;
+        }).join("");
+      sessionFolderSelect.value = prev;
     }
   }
 

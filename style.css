@@ -3571,3 +3571,106 @@ input[type="text"].input-minimal:focus {
 .gqa-choice-row .input-minimal { flex: 1; }
 .gqa-type-label { display: flex; align-items: center; gap: var(--sp-1); font-size: var(--fs-sm); color: var(--text-muted); }
 .btn-delete.btn-sm { min-height: 32px; padding: 0 .5rem; }
+
+/* ====================================================================
+   PRACTICE SESSIONS & HUD STYLES
+   ==================================================================== */
+.session-hud {
+  width: 100%;
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--r-md);
+  padding: 0.6rem 1rem;
+  margin-bottom: 0.8rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  box-shadow: var(--e-sm);
+  animation: section-in var(--dur-normal) var(--ease-out);
+  box-sizing: border-box;
+}
+
+.session-hud-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--success-color);
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+
+.session-hud-metrics {
+  display: flex;
+  flex: 1;
+  justify-content: space-around;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.session-hud-metric {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.session-hud-val {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-color);
+  font-family: var(--font-mono);
+}
+
+.session-hud-label {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  margin-top: 1px;
+  white-space: nowrap;
+}
+
+/* Status indicator pulse animation */
+@keyframes pulse {
+  0% { transform: scale(0.95); opacity: 0.5; }
+  50% { transform: scale(1.05); opacity: 1; }
+  100% { transform: scale(0.95); opacity: 0.5; }
+}
+
+/* Zen mode overrides for sessions and progress bars */
+body.zen-mode .session-hud {
+  display: none !important;
+}
+
+body.zen-mode .typing-progress-label-row,
+body.zen-mode .para-progress-label-row {
+  display: none !important;
+}
+
+body.zen-mode .typing-progress-wrapper,
+body.zen-mode .para-progress-wrapper {
+  margin: 0 !important;
+}
+
+body.zen-mode .progress-container {
+  position: fixed !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  height: 3px !important;
+  z-index: 60 !important;
+  border-radius: 0 !important;
+  background-color: var(--border-color) !important;
+}
+
+body.zen-mode .para-progress-container {
+  position: fixed !important;
+  bottom: 3px !important;
+  left: 0 !important;
+  right: 0 !important;
+  height: 3px !important;
+  z-index: 60 !important;
+  border-radius: 0 !important;
+  background-color: transparent !important;
+}
+
